@@ -1,0 +1,736 @@
+{% extends "base.html" %}
+
+{% block title %}AI Business Proposal Workspace — Proposal Generator{% endblock %}
+{% block page_name %}AI Business Proposal Workspace{% endblock %}
+
+{% block topbar_title %}
+  {% set current_client = proposal.client if (proposal and proposal.client) else (proposal_inputs.client if (proposal_inputs and proposal_inputs.client) else '') %}
+  <div style="display: flex; flex-direction: column; justify-content: center; line-height: 1.2;">
+    <span class="breadcrumb-item" style="color: var(--text-main); font-weight: 700; font-size: 14px; line-height: 1.2;">AI Business Proposal Workspace</span>
+    {% if current_client %}
+      <span style="color: var(--text-muted); font-size: 12px; font-weight: 500; line-height: 1.2;">{{ current_client }}</span>
+    {% endif %}
+  </div>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard grc-page proposal-page">
+  <!-- Navigation Header -->
+  <div class="topbar workspace-topbar no-print" style="margin-bottom: 12px;">
+    <a href="{{ url_for('proposal_tracker') }}" class="back-to-tracker-btn home-nav-link" id="backToTrackerBtn" title="Return to Proposal Tracker Home">
+      <span>← Proposal Tracker</span>
+    </a>
+  </div>
+
+  {% if proposal %}
+    <!-- STATE B — AFTER SUCCESSFUL PROPOSAL GENERATION -->
+    <!-- Full-Width Proposal Header Card -->
+    {% set current_status = proposal.status if (proposal and proposal.status) else (assessment.status if (assessment and assessment.status) else 'In Evaluation') %}
+    {% if current_status in ['In Progress', 'Draft', 'New'] %}{% set current_status = 'In Evaluation' %}{% endif %}
+    {% set proposal_payload = proposal | tojson | forceescape %}
+    <div class="proposal-tracker-card full-width-proposal-header no-print" style="background: var(--bg-surface-alt, #f8fafc); border: 1px solid var(--border-color, #e2e8f0); border-radius: var(--radius-md, 8px); padding: 12px 16px; margin-bottom: 12px; width: 100%;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px;">
+                    <span class="eyebrow" style="background: var(--accent, #2563eb); color: #ffffff; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase;">
+                        {{ proposal.code or ('PROP-2026-' ~ proposal.assessment_id) if proposal.assessment_id else 'AI PROPOSAL' }}
+                    </span>
+                    <span id="headerStatusBadge" class="status-pill {% if current_status == 'Approved' %}status-approved{% elif current_status == 'Rejected' %}status-rejected{% elif current_status == 'Submitted' %}status-submitted{% else %}status-eval{% endif %}" style="font-size: 11px; padding: 2px 8px;">
+                        <span class="pill-dot"></span> {{ current_status }}
+                    </span>
+                </div>
+                <h2 style="margin: 2px 0 3px 0; font-size: 1.15rem; color: var(--text-main, #0f172a); font-weight: 700;">{{ proposal.title or ('Business Proposal for ' ~ (proposal.client or 'Client Organization')) }}</h2>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--text-muted, #64748b); font-size: 0.8rem;">
+                    <span><strong>Client:</strong> {{ proposal.client or 'Client Organization' }}</span>
+                    <span>•</span>
+                    <span><strong>Contribution:</strong> {{ proposal.commercials.amount if (proposal.commercials is defined and proposal.commercials.amount) else (proposal.pricing.amount if (proposal.pricing is defined and proposal.pricing.amount) else (proposal.pricing_amount if proposal.pricing_amount is defined else 'To be confirmed')) }}</span>
+                </div>
+            </div>
+            
+            <div class="no-print" style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                <form method="POST" action="{{ url_for('ai_grc') }}" style="margin: 0;" data-loading-title="⚡ Regenerating Business Proposal..." data-loading-subtitle="AI AGENT IS ANALYZING CLIENT REQUIREMENTS AND GENERATING A BUSINESS PROPOSAL.">
+                    <input type="hidden" name="ai_mode" value="business_proposal" />
+                    <input type="hidden" name="proposal_client" id="regen_client" value="{{ (proposal_inputs and proposal_inputs.client) if (proposal_inputs and proposal_inputs.client) else (proposal.client if (proposal and proposal.client) else '') }}" />
+                    <input type="hidden" name="proposal_project_type" id="regen_project_type" value="{{ (proposal_inputs and proposal_inputs.project_type) if (proposal_inputs and proposal_inputs.project_type) else (proposal.project_type if (proposal and proposal.project_type) else '') }}" />
+                    <input type="hidden" name="proposal_deliverables" id="regen_deliverables" value="{{ (proposal_inputs and proposal_inputs.deliverables) if (proposal_inputs and proposal_inputs.deliverables) else '' }}" />
+                    <input type="hidden" name="proposal_timeline" id="regen_timeline" value="{{ (proposal_inputs and proposal_inputs.timeline) if (proposal_inputs and proposal_inputs.timeline) else '' }}" />
+                    <input type="hidden" name="proposal_currency" id="regen_currency" value="{{ (proposal_inputs and proposal_inputs.currency) if (proposal_inputs and proposal_inputs.currency) else 'INR' }}" />
+                    <input type="hidden" name="proposal_budget" id="regen_budget" value="{{ (proposal_inputs and proposal_inputs.budget) if (proposal_inputs and proposal_inputs.budget) else (proposal.pricing.amount if (proposal and proposal.pricing and proposal.pricing.amount) else '') }}" />
+                    <input type="hidden" name="request_text" id="regen_request_text" value="{{ (proposal_inputs and proposal_inputs.additional_context) if (proposal_inputs and proposal_inputs.additional_context) else '' }}" />
+                    <button type="submit" class="secondary-btn icon-action-btn" title="Regenerate Proposal" aria-label="Regenerate Proposal" style="padding: 6px 10px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                    </button>
+                </form>
+                <form method="POST" action="{{ url_for('download_ai_proposal', file_type='pdf') }}" class="proposal-action-form" style="margin: 0;" data-loading-title="Generating PDF Document..." data-loading-subtitle="Compiling complete proposal into PDF format.">
+                    <input type="hidden" name="assessment_id" value="{{ assessment.id if assessment else (proposal.assessment_id if (proposal and proposal.assessment_id) else '') }}">
+                    <input type="hidden" name="proposal_json" value="{{ proposal_payload }}">
+                    <button type="submit" class="secondary-btn icon-action-btn" title="Download PDF" aria-label="Download PDF" style="padding: 6px 10px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                    </button>
+                </form>
+                <form method="POST" action="{{ url_for('download_ai_proposal', file_type='docx') }}" class="proposal-action-form" style="margin: 0;" data-loading-title="Generating Word Document..." data-loading-subtitle="Compiling complete proposal into Word (DOCX) format.">
+                    <input type="hidden" name="assessment_id" value="{{ assessment.id if assessment else (proposal.assessment_id if (proposal and proposal.assessment_id) else '') }}">
+                    <input type="hidden" name="proposal_json" value="{{ proposal_payload }}">
+                    <button type="submit" class="secondary-btn icon-action-btn" title="Download Word" aria-label="Download Word" style="padding: 6px 10px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                    </button>
+                </form>
+                <button type="button" class="secondary-btn icon-action-btn" onclick="window.print()" title="Print Proposal" aria-label="Print Proposal" style="padding: 6px 10px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="proposal-workspace-grid">
+      <!-- Left Column: Transformed Proposal Table of Contents -->
+      <aside class="workspace-toc-card no-print">
+        <div class="workspace-toc-title">Proposal Table of Contents</div>
+        <div class="workspace-toc-list" id="proposalTocList">
+          {% set sections_to_toc = proposal.sections if (proposal.sections is defined and proposal.sections) else [] %}
+          {% for sec in sections_to_toc %}
+          <a href="#{{ sec.id }}" class="workspace-toc-item toc-item" data-no-loader="true">{{ loop.index }}. {{ sec.title }}</a>
+          {% endfor %}
+        </div>
+
+        <!-- Proposal Status Selector Card -->
+        <div class="workspace-status-container" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border-color, #e2e8f0);">
+          <div class="workspace-toc-title" style="border: none; padding: 0 0 6px 0; margin: 0;">PROPOSAL STATUS</div>
+          <select id="proposalWorkspaceStatusSelect" class="form-select" onchange="updateProposalWorkspaceStatus(this.value)" style="width: 100%; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 6px; background-color: var(--bg-surface-alt, #f8fafc); border: 1px solid var(--border-color, #cbd5e1); color: var(--text-main, #0f172a); cursor: pointer;">
+            <option value="In Evaluation" {% if current_status == 'In Evaluation' or current_status == 'Under Review' or current_status == 'Draft' %}selected{% endif %}>Under Review</option>
+            <option value="Approved" {% if current_status == 'Approved' or current_status == 'Accept' or current_status == 'Accepted' %}selected{% endif %}>Accept</option>
+            <option value="Rejected" {% if current_status == 'Rejected' or current_status == 'Reject' %}selected{% endif %}>Reject</option>
+          </select>
+          <div id="proposalStatusFeedback" style="font-size: 11px; margin-top: 4px; display: none; color: #16a34a; font-weight: 600;">✓ Status updated</div>
+        </div>
+
+        <!-- Deal Outcome Selector Card -->
+        <div class="workspace-outcome-container" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color, #e2e8f0);">
+          <div class="workspace-toc-title" style="border: none; padding: 0 0 6px 0; margin: 0;">DEAL OUTCOME</div>
+          {% set current_outcome = (proposal.deal_outcome if (proposal is defined and proposal and proposal.deal_outcome) else 'Open') %}
+          <select id="proposalWorkspaceOutcomeSelect" class="form-select" onchange="updateProposalDealOutcome(this.value)" style="width: 100%; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 6px; background-color: var(--bg-surface-alt, #f8fafc); border: 1px solid var(--border-color, #cbd5e1); color: var(--text-main, #0f172a); cursor: pointer;">
+            <option value="Open" {% if current_outcome == 'Open' or not current_outcome %}selected{% endif %}>Open</option>
+            <option value="Won" {% if current_outcome == 'Won' %}selected{% endif %}>Won</option>
+            <option value="Lost" {% if current_outcome == 'Lost' %}selected{% endif %}>Lost</option>
+          </select>
+          <div id="proposalOutcomeFeedback" style="font-size: 11px; margin-top: 4px; display: none; color: #16a34a; font-weight: 600;">✓ Outcome updated</div>
+        </div>
+      </aside>
+
+      <!-- Right Column: Generated Business Proposal Document -->
+      <main class="proposal-document-main">
+        {% set hide_proposal_header = true %}
+        {% include '_business_proposal_doc.html' %}
+      </main>
+    </div>
+
+  {% else %}
+    <!-- STATE A — BEFORE SUCCESSFUL PROPOSAL GENERATION -->
+    <div class="proposal-workspace-grid">
+      <!-- Left Column: Structured Client / Project Information Column -->
+      <aside class="client-info-card">
+        <div class="client-info-header">
+          <h3>Client / Project</h3>
+          <div class="client-name-title" id="live-client-header">
+            {{ proposal_inputs.client if (proposal_inputs and proposal_inputs.client) else 'Enterprise Prospect' }}
+          </div>
+        </div>
+
+        <div class="client-info-list">
+          <div class="client-info-item">
+            <span class="client-info-label">Client Name</span>
+            <span class="client-info-value" id="live-client-name">
+              {{ proposal_inputs.client if (proposal_inputs and proposal_inputs.client) else 'Not specified' }}
+            </span>
+          </div>
+
+          <div class="client-info-item">
+            <span class="client-info-label">Project Type &amp; Scope</span>
+            <span class="client-info-value" id="live-project-type">
+              {{ proposal_inputs.project_type if (proposal_inputs and proposal_inputs.project_type) else 'Cybersecurity Assessment' }}
+            </span>
+          </div>
+
+          <div class="client-info-item">
+            <span class="client-info-label">Schedule Timeline</span>
+            <span class="client-info-value" id="live-timeline">
+              {{ proposal_inputs.timeline if (proposal_inputs and proposal_inputs.timeline) else 'Phased Schedule' }}
+            </span>
+          </div>
+
+          <div class="client-info-item">
+            <span class="client-info-label">Engagement Budget</span>
+            <span class="client-info-value" id="live-budget">
+              {% if proposal_inputs and proposal_inputs.budget %}
+                {% if proposal_inputs.currency == 'USD' %}${% else %}₹{% endif %}{{ proposal_inputs.budget }}
+              {% else %}
+                TBD
+              {% endif %}
+            </span>
+          </div>
+
+          <div class="client-info-item">
+            <span class="client-info-label">Scope Deliverables</span>
+            <span class="client-info-value" id="live-deliverables" style="font-size: 12px; color: var(--text-muted);">
+              {{ proposal_inputs.deliverables if (proposal_inputs and proposal_inputs.deliverables) else 'Vulnerability report, risk matrix, executive summary' }}
+            </span>
+          </div>
+
+          <div class="client-info-item">
+            <span class="client-info-label">Framework / Standard</span>
+            <span class="client-info-badge">ISO 27001 / Enterprise Security</span>
+          </div>
+
+          <div class="client-info-item">
+            <span class="client-info-label">Workspace Status</span>
+            <span class="client-info-badge" style="background: rgba(37,99,235,0.1); color: var(--accent); border-color: rgba(37,99,235,0.2);">
+              ● Ready for AI Generation
+            </span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Column: Template Selection & AI Business Proposal Generator Form -->
+      <main class="proposal-form-main">
+        <!-- STEP 1: TEMPLATE SELECTION CONTAINER -->
+        <div id="templateSelectionStep" class="card no-print" style="padding: 28px; display: {% if session.get('selected_template_id') or (proposal_inputs and proposal_inputs.client) %}none{% else %}block{% endif %};">
+          <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 14px; margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+              <span style="background: var(--accent); color: white; border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">1</span>
+              <h2 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin: 0;">Choose Proposal Template</h2>
+            </div>
+            <p style="font-size: 13px; color: var(--text-muted); margin: 4px 0 0 30px;">
+              Select a visual template for your proposal. The chosen template controls the layout and styling of your final PDF and DOCX document downloads.
+            </p>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-bottom: 24px;">
+            <!-- Default Standard Template Card -->
+            {% set active_tmpl_id = active_template.template_id if active_template else 'standard_professional' %}
+            <div id="tmpl_card_standard_professional" class="template-select-card {% if active_tmpl_id in ['standard_professional', 'default_whitehats'] %}selected{% endif %}" onclick="selectTemplateOption('standard_professional', 'Standard Professional')">
+              <div class="template-card-badge">DEFAULT TEMPLATE</div>
+              <div class="template-card-preview">
+                <div class="preview-mini-doc">
+                  <div class="preview-top-bar"></div>
+                  <div class="preview-doc-header">
+                    <span class="preview-doc-title">BUSINESS PROPOSAL</span>
+                    <span class="preview-doc-sub">PROPOSAL</span>
+                  </div>
+                  <div class="preview-meta-box">
+                    <div class="preview-meta-item"><strong>Client:</strong> Acme Corp</div>
+                    <div class="preview-meta-item"><strong>Scope:</strong> Project</div>
+                    <div class="preview-meta-item"><strong>Date:</strong> 2026-08-24</div>
+                    <div class="preview-meta-item"><strong>Status:</strong> Final</div>
+                  </div>
+                  <div class="preview-sec-head">1. EXECUTIVE SUMMARY</div>
+                  <div class="preview-text-block">
+                    <div class="preview-text-line full"></div>
+                    <div class="preview-text-line medium"></div>
+                    <div class="preview-text-line short"></div>
+                  </div>
+                  <div class="preview-sec-head">2. COMMERCIALS</div>
+                  <div class="preview-mini-table">
+                    <div class="preview-table-row header">
+                      <span>Services</span>
+                      <span>Total</span>
+                    </div>
+                    <div class="preview-table-row">
+                      <span>Enterprise Professional Services</span>
+                      <span>₹250,000</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="template-card-info">
+                <h4 style="margin: 0 0 4px 0; font-size: 14px; font-weight: 700; color: var(--text-main);">Standard Professional</h4>
+                <p style="margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+                  Clean, modern enterprise proposal layout with crisp typography, structured margins, headers/footers, and page numbers.
+                </p>
+              </div>
+              <div class="template-card-footer">
+                <span class="template-select-indicator">{% if active_tmpl_id in ['standard_professional', 'default_whitehats'] %}&#10003; Selected{% else %}Select Template{% endif %}</span>
+              </div>
+            </div>
+
+            <!-- Custom Template Card & Upload Dropzone -->
+            <div class="template-select-card custom-upload-card">
+              <div class="template-card-badge alt">CUSTOM TEMPLATE</div>
+              <div style="padding: 14px 16px; flex: 1; display: flex; flex-direction: column;">
+                <h4 style="margin: 0 0 4px 0; font-size: 14px; font-weight: 700; color: var(--text-main);">Upload Your Template</h4>
+                <p style="margin: 0 0 12px 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+                  Upload your corporate DOCX or PDF template with placeholders like <code>&#123;&#123;client_name&#125;&#125;</code> and <code>&#123;&#123;executive_summary&#125;&#125;</code>.
+                </p>
+
+                <!-- Available Custom Templates List -->
+                <div id="customTemplatesList" style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; max-height: 120px; overflow-y: auto;">
+                  {% if available_templates %}
+                    {% for tmpl in available_templates %}
+                      {% if not tmpl.is_default %}
+                        <div id="tmpl_card_{{ tmpl.template_id }}" class="custom-tmpl-item {% if active_tmpl_id == tmpl.template_id %}selected{% endif %}" onclick="selectTemplateOption('{{ tmpl.template_id }}', '{{ tmpl.name }}')">
+                          <span style="font-size: 12px; font-weight: 600;">&#128196; {{ tmpl.name }}</span>
+                          <span class="custom-select-dot">{% if active_tmpl_id == tmpl.template_id %}&#10003;{% endif %}</span>
+                        </div>
+                      {% endif %}
+                    {% endfor %}
+                  {% endif %}
+                </div>
+
+                <!-- Custom Template File Upload Form -->
+                <div class="template-upload-zone" onclick="document.getElementById('customTemplateFileInput').click()">
+                  <input type="file" id="customTemplateFileInput" accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display: none;" onchange="handleCustomTemplateUpload(this)" />
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="margin-bottom: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                  <div style="font-size: 12px; font-weight: 600; color: var(--accent);" id="uploadDropText">+ Upload Custom Template</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">Max size 10MB (.docx, .pdf)</div>
+                </div>
+                <div id="templateUploadStatus" style="font-size: 11px; margin-top: 6px; display: none;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; padding-top: 16px; border-top: 1px solid var(--border-color);">
+            <button type="button" class="primary-btn" onclick="continueToProposalDetails()" style="padding: 10px 28px; font-size: 13px;">
+              Continue to Proposal Details →
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 2: PROPOSAL DETAILS FORM -->
+        <div id="proposalDetailsStep" class="card no-print" style="padding: 28px; display: {% if session.get('selected_template_id') or (proposal_inputs and proposal_inputs.client) %}block{% else %}none{% endif %};">
+          <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 14px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                <span style="background: var(--accent); color: white; border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">2</span>
+                <h2 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin: 0;">AI Business Proposal Generator</h2>
+              </div>
+              <p style="font-size: 13px; color: var(--text-muted); margin: 4px 0 0 30px;">
+                Provide client and project specifications below to generate a complete enterprise proposal.
+              </p>
+            </div>
+
+            <!-- Active Selected Template Badge -->
+            <div class="active-template-badge-card" style="background: var(--bg-surface-alt, #f8fafc); border: 1px solid var(--border-color, #cbd5e1); border-radius: 6px; padding: 6px 12px; display: flex; align-items: center; gap: 10px;">
+              <div style="display: flex; flex-direction: column;">
+                <span style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Selected Template</span>
+                <span id="activeTemplateNameLabel" style="font-size: 12px; font-weight: 700; color: var(--text-main);">
+                  {{ active_template.name if active_template else 'Standard Professional' }}
+                </span>
+              </div>
+              <button type="button" class="secondary-btn" onclick="showTemplateSelectionStep()" style="padding: 4px 8px; font-size: 11px;" title="Change document template">
+                Change Template
+              </button>
+            </div>
+          </div>
+
+          <form method="POST" action="{{ url_for('ai_grc') }}" class="assessment-form" data-loading-title="⚡ Generating Business Proposal..." data-loading-subtitle="AI AGENT IS ANALYZING CLIENT REQUIREMENTS AND GENERATING A BUSINESS PROPOSAL.">
+            <input type="hidden" name="ai_mode" value="business_proposal" />
+            <input type="hidden" name="template_id" id="selected_template_id" value="{{ active_template.template_id if active_template else 'standard_professional' }}" />
+
+            <div style="display: flex; flex-direction: column; gap: 18px; margin-bottom: 24px;">
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
+                <div class="form-group">
+                  <label for="proposal_client">Client / Customer Name <span style="color: #ef4444;">*</span></label>
+                  <input id="proposal_client" class="form-control" name="proposal_client" type="text" value="{{ proposal_inputs.client if proposal_inputs else '' }}" placeholder="e.g. Apex Manufacturing Solutions Pvt. Ltd." required />
+                </div>
+
+                <div class="form-group">
+                  <label for="proposal_project_type">Project Type &amp; Scope <span style="color: #ef4444;">*</span></label>
+                  <input id="proposal_project_type" class="form-control" name="proposal_project_type" type="text" value="{{ proposal_inputs.project_type if proposal_inputs else '' }}" placeholder="e.g. Enterprise Security Assessment &amp; ISO 27001 Audit" required />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="proposal_deliverables">Scope Deliverables</label>
+                <textarea id="proposal_deliverables" class="form-control" name="proposal_deliverables" rows="2" placeholder="e.g. Network vulnerability report, risk matrix, remediation roadmap, final executive report">{{ proposal_inputs.deliverables if proposal_inputs else '' }}</textarea>
+              </div>
+
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+                <div class="form-group">
+                  <label for="proposal_timeline">Schedule Timeline</label>
+                  <input id="proposal_timeline" class="form-control" name="proposal_timeline" type="text" value="{{ proposal_inputs.timeline if proposal_inputs else '' }}" placeholder="e.g. 8 weeks" />
+                </div>
+
+                <div class="form-group">
+                  <label for="proposal_budget">Engagement Commercials / Budget</label>
+                  <div style="display: flex; gap: 8px;">
+                    <select id="proposal_currency" name="proposal_currency" class="form-select" style="width: 120px; font-weight: 600; flex-shrink: 0;">
+                      <option value="INR" {% if not proposal_inputs or proposal_inputs.currency == 'INR' or not proposal_inputs.currency %}selected{% endif %}>INR (₹)</option>
+                      <option value="USD" {% if proposal_inputs and proposal_inputs.currency == 'USD' %}selected{% endif %}>USD ($)</option>
+                      <option value="SAR" {% if proposal_inputs and proposal_inputs.currency == 'SAR' %}selected{% endif %}>SAR (﷼)</option>
+                      <option value="AED" {% if proposal_inputs and proposal_inputs.currency == 'AED' %}selected{% endif %}>AED (د.إ)</option>
+                    </select>
+                    <input id="proposal_budget" class="form-control" name="proposal_budget" type="text" value="{{ proposal_inputs.budget if proposal_inputs else '' }}" placeholder="e.g. 750000" style="flex: 1;" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="request_text">Additional Security Context &amp; Objectives</label>
+                <textarea id="request_text" class="form-control" name="request_text" rows="4" placeholder="Example: Prioritize high-risk network segments, align recommendations with ISO 27001 controls, and include executive summary outcomes.">{{ prompt or '' }}</textarea>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end;">
+              <button type="submit" class="primary-btn" style="padding: 12px 32px; font-size: 14px;">
+                ⚡ Generate Business Proposal
+              </button>
+            </div>
+          </form>
+        </div>
+      </main>
+    </div>
+  {% endif %}
+
+
+  <!-- Unsaved Changes Confirmation Modal Overlay -->
+  <div id="unsavedChangesModal" class="proposal-modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="unsavedModalTitle">
+    <div class="proposal-modal-card">
+      <div class="proposal-modal-header">
+        <div class="modal-danger-icon" style="background: #fffbeb; border-color: #fde68a;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        </div>
+        <div>
+          <h3 id="unsavedModalTitle" class="proposal-modal-title">Leave Proposal?</h3>
+          <p class="proposal-modal-subtitle" style="color: #d97706;">Unsaved Changes Warning</p>
+        </div>
+        <button type="button" class="modal-close-btn" id="closeUnsavedCross" aria-label="Close">&times;</button>
+      </div>
+      <div class="proposal-modal-body">
+        <p style="margin: 0; font-size: 14px; color: #334155; line-height: 1.5;">
+          You have unsaved changes. Are you sure you want to return to the Proposal Tracker?
+        </p>
+        <p class="modal-warning-text" style="background: #fffbeb; border-left-color: #d97706; color: #92400e; margin-top: 12px; padding: 10px 14px; border-radius: 4px; font-size: 13px;">
+          Any unsubmitted inputs will be lost if you leave without generating your proposal.
+        </p>
+      </div>
+      <div class="proposal-modal-footer" style="padding: 16px 24px; background: #f8fafc; border-top: 1px solid var(--border-color, #e2e8f0); display: flex; justify-content: flex-end; gap: 12px;">
+        <button type="button" class="secondary-btn" id="stayOnPageBtn" style="font-size: 13px; padding: 8px 16px;">Stay</button>
+        <a href="{{ url_for('proposal_tracker') }}" class="danger-btn-modal" id="leavePageBtn" style="background: #d97706; border-color: #b45309; text-decoration: none; padding: 8px 18px; font-size: 13px;">
+          <span>Leave</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function syncLiveClientContext() {
+      const clientInput = document.getElementById('proposal_client');
+      const projectInput = document.getElementById('proposal_project_type');
+      const deliverablesInput = document.getElementById('proposal_deliverables');
+      const timelineInput = document.getElementById('proposal_timeline');
+      const currencySelect = document.getElementById('proposal_currency');
+      const budgetInput = document.getElementById('proposal_budget');
+
+      const liveHeader = document.getElementById('live-client-header');
+      const liveClient = document.getElementById('live-client-name');
+      const liveProject = document.getElementById('live-project-type');
+      const liveTimeline = document.getElementById('live-timeline');
+      const liveBudget = document.getElementById('live-budget');
+      const liveDeliverables = document.getElementById('live-deliverables');
+
+      if (clientInput) {
+        const val = clientInput.value.trim();
+        if (liveHeader) liveHeader.textContent = val || 'Enterprise Prospect';
+        if (liveClient) liveClient.textContent = val || 'Not specified';
+      }
+
+      if (projectInput) {
+        const val = projectInput.value.trim();
+        if (liveProject) liveProject.textContent = val || 'Cybersecurity Assessment';
+      }
+
+      if (timelineInput) {
+        const val = timelineInput.value.trim();
+        if (liveTimeline) liveTimeline.textContent = val || 'Phased Schedule';
+      }
+
+      if (budgetInput && currencySelect) {
+        const rawBudget = budgetInput.value.trim();
+        const curr = currencySelect.value === 'USD' ? '$' : '₹';
+        if (liveBudget) {
+          if (rawBudget) {
+            const clean = rawBudget.replace(/^[₹$]\s*/, '');
+            liveBudget.textContent = curr + clean;
+          } else {
+            liveBudget.textContent = 'TBD';
+          }
+        }
+      }
+
+      if (deliverablesInput) {
+        const val = deliverablesInput.value.trim();
+        if (liveDeliverables) liveDeliverables.textContent = val || 'Vulnerability report, risk matrix, executive summary';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      let isFormDirty = false;
+      const form = document.querySelector('.assessment-form');
+
+      if (form) {
+        const inputs = form.querySelectorAll('input:not([type="hidden"]), textarea, select');
+        inputs.forEach(function (input) {
+          input.addEventListener('input', function () {
+            if (input.value && input.value.trim().length > 0) {
+              isFormDirty = true;
+            }
+          });
+          input.addEventListener('change', function () {
+            if (input.value && input.value.trim().length > 0) {
+              isFormDirty = true;
+            }
+          });
+        });
+
+        form.addEventListener('submit', function () {
+          isFormDirty = false;
+        });
+      }
+
+      let pendingNavUrl = '{{ url_for("proposal_tracker") }}';
+
+      function handleHomeNavigation(evt) {
+        if (isFormDirty) {
+          evt.preventDefault();
+          pendingNavUrl = this.getAttribute('href') || '{{ url_for("proposal_tracker") }}';
+          const modal = document.getElementById('unsavedChangesModal');
+          if (modal) modal.style.display = 'flex';
+        }
+      }
+
+      const homeNavLinks = document.querySelectorAll('.home-nav-link, #backToTrackerBtn, #breadcrumbTrackerLink');
+      homeNavLinks.forEach(function (link) {
+        link.addEventListener('click', handleHomeNavigation);
+      });
+
+      const stayBtn = document.getElementById('stayOnPageBtn');
+      const closeCross = document.getElementById('closeUnsavedCross');
+      const leaveBtn = document.getElementById('leavePageBtn');
+      const unsavedModal = document.getElementById('unsavedChangesModal');
+
+      if (stayBtn) {
+        stayBtn.addEventListener('click', function () {
+          if (unsavedModal) unsavedModal.style.display = 'none';
+        });
+      }
+
+      if (closeCross) {
+        closeCross.addEventListener('click', function () {
+          if (unsavedModal) unsavedModal.style.display = 'none';
+        });
+      }
+
+      if (leaveBtn) {
+        leaveBtn.addEventListener('click', function (evt) {
+          evt.preventDefault();
+          isFormDirty = false;
+          window.location.href = pendingNavUrl;
+        });
+      }
+
+      const fields = ['proposal_client', 'proposal_project_type', 'proposal_deliverables', 'proposal_timeline', 'proposal_currency', 'proposal_budget'];
+      fields.forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('input', syncLiveClientContext);
+          el.addEventListener('change', syncLiveClientContext);
+        }
+      });
+      syncLiveClientContext();
+    });
+
+    function selectTemplateOption(templateId, templateName) {
+      const hiddenInput = document.getElementById('selected_template_id');
+      if (hiddenInput) hiddenInput.value = templateId;
+
+      const nameLabel = document.getElementById('activeTemplateNameLabel');
+      if (nameLabel) nameLabel.textContent = templateName;
+
+      document.querySelectorAll('.template-select-card, .custom-tmpl-item').forEach(function(el) {
+        el.classList.remove('selected');
+        const dot = el.querySelector('.template-select-indicator, .custom-select-dot');
+        if (dot) dot.textContent = el.classList.contains('custom-tmpl-item') ? '' : 'Select Template';
+      });
+
+      const card = document.getElementById('tmpl_card_' + templateId);
+      if (card) {
+        card.classList.add('selected');
+        const dot = card.querySelector('.template-select-indicator, .custom-select-dot');
+        if (dot) dot.textContent = card.classList.contains('custom-tmpl-item') ? '✓' : '✓ Selected';
+      }
+
+      fetch('/grc/ai/templates/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ template_id: templateId })
+      }).catch(function(err) { console.error('Template selection save error:', err); });
+    }
+
+    function showTemplateSelectionStep() {
+      const step1 = document.getElementById('templateSelectionStep');
+      const step2 = document.getElementById('proposalDetailsStep');
+      if (step1) step1.style.display = 'block';
+      if (step2) step2.style.display = 'none';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function continueToProposalDetails() {
+      const step1 = document.getElementById('templateSelectionStep');
+      const step2 = document.getElementById('proposalDetailsStep');
+      if (step1) step1.style.display = 'none';
+      if (step2) step2.style.display = 'block';
+    }
+
+    function handleCustomTemplateUpload(input) {
+      if (!input.files || !input.files[0]) return;
+      const file = input.files[0];
+      const statusEl = document.getElementById('templateUploadStatus');
+      const dropText = document.getElementById('uploadDropText');
+      const fileNameLower = file.name.toLowerCase();
+      const isDocx = fileNameLower.endsWith('.docx');
+      const isPdf = fileNameLower.endsWith('.pdf');
+
+      if (!isDocx && !isPdf) {
+        if (statusEl) {
+          statusEl.style.display = 'block';
+          statusEl.style.color = '#ef4444';
+          statusEl.textContent = 'This template format isn\'t supported. Please upload a valid .docx or .pdf document template.';
+        }
+        return;
+      }
+
+      const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
+      const formData = new FormData();
+      formData.append('template_file', file);
+      formData.append('template_name', cleanName);
+
+      if (dropText) dropText.textContent = 'Uploading template...';
+      if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.style.color = '#2563eb';
+        statusEl.textContent = 'Uploading and validating template...';
+      }
+
+      fetch('/grc/ai/templates/upload', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: formData
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success) {
+          if (statusEl) {
+            statusEl.style.color = '#16a34a';
+            statusEl.textContent = '✓ Template uploaded and selected successfully!';
+          }
+          if (dropText) dropText.textContent = '+ Upload Another Template';
+          
+          const tmpl = data.template;
+          selectTemplateOption(tmpl.template_id, tmpl.name);
+
+          const listEl = document.getElementById('customTemplatesList');
+          if (listEl) {
+            const iconStr = (tmpl.format === 'pdf' || (tmpl.file_path && tmpl.file_path.toLowerCase().endsWith('.pdf'))) ? '📄' : '📝';
+            const itemHtml = `<div id="tmpl_card_${tmpl.template_id}" class="custom-tmpl-item selected" onclick="selectTemplateOption('${tmpl.template_id}', '${tmpl.name.replace(/'/g, "\\'")}')"><span style="font-size: 12px; font-weight: 600;">${iconStr} ${tmpl.name}</span><span class="custom-select-dot">✓</span></div>`;
+            listEl.insertAdjacentHTML('afterbegin', itemHtml);
+          }
+        } else {
+          if (statusEl) {
+            statusEl.style.color = '#ef4444';
+            statusEl.textContent = data.error || 'Template upload failed.';
+          }
+          if (dropText) dropText.textContent = '+ Upload Custom Template';
+        }
+      })
+      .catch(function(err) {
+        if (statusEl) {
+          statusEl.style.color = '#ef4444';
+          statusEl.textContent = 'Upload failed: ' + err;
+        }
+        if (dropText) dropText.textContent = '+ Upload Custom Template';
+      });
+    }
+
+    function updateProposalDealOutcome(newOutcome) {
+      const feedbackEl = document.getElementById('proposalOutcomeFeedback');
+      if (window.currentProposal) {
+        window.currentProposal.deal_outcome = newOutcome;
+      }
+      fetch('/tracker/deal-outcome', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-No-Loader': 'true'
+        },
+        body: JSON.stringify({
+          assessment_id: (window.currentProposal && window.currentProposal.assessment_id) || null,
+          deal_outcome: newOutcome
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          if (feedbackEl) {
+            feedbackEl.textContent = '✓ Outcome updated';
+            feedbackEl.style.display = 'block';
+            setTimeout(() => { feedbackEl.style.display = 'none'; }, 3000);
+          }
+        }
+      })
+      .catch(err => console.error('Error updating deal outcome:', err));
+    }
+
+    function updateProposalWorkspaceStatus(newStatus) {
+      const feedbackEl = document.getElementById('proposalStatusFeedback');
+      const badgeEl = document.getElementById('headerStatusBadge');
+
+      if (window.currentProposal) {
+        window.currentProposal.status = newStatus;
+      }
+
+      fetch('/grc/ai/proposal/status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-No-Loader': 'true'
+        },
+        body: JSON.stringify({
+          assessment_id: (window.currentProposal && window.currentProposal.assessment_id) || null,
+          status: newStatus
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          const norm = data.status || newStatus;
+          if (window.currentProposal) window.currentProposal.status = norm;
+          if (badgeEl) {
+            let pillClass = 'status-eval';
+            let displayLabel = 'Under Review';
+            if (norm === 'Approved' || norm === 'Accept' || norm === 'Accepted') {
+              pillClass = 'status-approved';
+              displayLabel = 'Approved';
+            } else if (norm === 'Rejected' || norm === 'Reject') {
+              pillClass = 'status-rejected';
+              displayLabel = 'Rejected';
+            } else if (norm === 'Submitted') {
+              pillClass = 'status-submitted';
+              displayLabel = 'Submitted';
+            }
+            badgeEl.className = `status-pill ${pillClass}`;
+            badgeEl.innerHTML = `<span class="pill-dot"></span> ${displayLabel}`;
+          }
+          if (feedbackEl) {
+            feedbackEl.style.display = 'block';
+            setTimeout(function() { feedbackEl.style.display = 'none'; }, 2500);
+          }
+        }
+      })
+      .catch(err => {
+        console.error('Update status failed:', err);
+      });
+    }
+  </script>
+</div>
+{% endblock %}

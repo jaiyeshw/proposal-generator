@@ -1,0 +1,1224 @@
+{% if proposal %}
+<div class="card proposal-card" style="margin-bottom: 16px; padding: 20px 24px;">
+    {% set is_business = proposal._proposal_type == 'business' or proposal.executive_summary is defined or proposal.introduction is defined %}
+
+    {% if is_business %}
+    {% if not hide_proposal_header %}
+    <!-- AI Proposal Tracker & Header Card -->
+    {% set current_status = proposal.status if (proposal and proposal.status) else (assessment.status if (assessment and assessment.status) else 'In Evaluation') %}
+    {% if current_status in ['In Progress', 'Draft', 'New'] %}{% set current_status = 'In Evaluation' %}{% endif %}
+    {% set proposal_payload = proposal | tojson | forceescape %}
+    <div class="proposal-tracker-card" style="background: var(--bg-surface-alt, #f8fafc); border: 1px solid var(--border-color, #e2e8f0); border-radius: var(--radius-md, 8px); padding: 12px 16px; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px;">
+                    <span class="eyebrow" style="background: var(--accent, #2563eb); color: #ffffff; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase;">
+                        {{ proposal.code or ('PROP-2026-' ~ proposal.assessment_id) if proposal.assessment_id else 'AI PROPOSAL' }}
+                    </span>
+                    <span id="headerStatusBadge" class="status-pill {% if current_status == 'Approved' %}status-approved{% elif current_status == 'Rejected' %}status-rejected{% elif current_status == 'Submitted' %}status-submitted{% else %}status-eval{% endif %}" style="font-size: 11px; padding: 2px 8px;">
+                        <span class="pill-dot"></span> {{ current_status }}
+                    </span>
+                </div>
+                <h2 style="margin: 2px 0 3px 0; font-size: 1.15rem; color: var(--text-main, #0f172a); font-weight: 700;">{{ proposal.title or ('Business Proposal for ' ~ (proposal.client or 'Client Organization')) }}</h2>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--text-muted, #64748b); font-size: 0.8rem;">
+                    <span><strong>Client:</strong> {{ proposal.client or 'Client Organization' }}</span>
+                    <span>•</span>
+                    <span><strong>Contribution:</strong> {{ proposal.commercials.amount if (proposal.commercials is defined and proposal.commercials.amount) else (proposal.pricing.amount if (proposal.pricing is defined and proposal.pricing.amount) else (proposal.pricing_amount if proposal.pricing_amount is defined else 'To be confirmed')) }}</span>
+                </div>
+            </div>
+            
+            <div class="no-print" style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                <form method="POST" action="{{ url_for('ai_grc') }}" style="margin: 0;" data-loading-title="⚡ Regenerating Business Proposal..." data-loading-subtitle="AI AGENT IS ANALYZING CLIENT REQUIREMENTS AND GENERATING A BUSINESS PROPOSAL.">
+                    <input type="hidden" name="ai_mode" value="business_proposal" />
+                    <input type="hidden" name="proposal_client" id="regen_client" value="{{ (proposal_inputs and proposal_inputs.client) if (proposal_inputs and proposal_inputs.client) else (proposal.client if (proposal and proposal.client) else '') }}" />
+                    <input type="hidden" name="proposal_project_type" id="regen_project_type" value="{{ (proposal_inputs and proposal_inputs.project_type) if (proposal_inputs and proposal_inputs.project_type) else (proposal.project_type if (proposal and proposal.project_type) else '') }}" />
+                    <input type="hidden" name="proposal_deliverables" id="regen_deliverables" value="{{ (proposal_inputs and proposal_inputs.deliverables) if (proposal_inputs and proposal_inputs.deliverables) else '' }}" />
+                    <input type="hidden" name="proposal_timeline" id="regen_timeline" value="{{ (proposal_inputs and proposal_inputs.timeline) if (proposal_inputs and proposal_inputs.timeline) else '' }}" />
+                    <input type="hidden" name="proposal_currency" id="regen_currency" value="{{ (proposal_inputs and proposal_inputs.currency) if (proposal_inputs and proposal_inputs.currency) else 'INR' }}" />
+                    <input type="hidden" name="proposal_budget" id="regen_budget" value="{{ (proposal_inputs and proposal_inputs.budget) if (proposal_inputs and proposal_inputs.budget) else (proposal.pricing.amount if (proposal and proposal.pricing and proposal.pricing.amount) else '') }}" />
+                    <input type="hidden" name="request_text" id="regen_request_text" value="{{ (proposal_inputs and proposal_inputs.additional_context) if (proposal_inputs and proposal_inputs.additional_context) else '' }}" />
+                    <button type="submit" class="secondary-btn icon-action-btn" title="Regenerate Proposal" aria-label="Regenerate Proposal" style="padding: 6px 10px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                    </button>
+                </form>
+                <form method="POST" action="{{ url_for('download_ai_proposal', file_type='pdf') }}" class="proposal-action-form" style="margin: 0;" data-loading-title="Generating PDF Document..." data-loading-subtitle="Compiling complete proposal into PDF format.">
+                    <input type="hidden" name="assessment_id" value="{{ assessment.id if assessment else (proposal.assessment_id if (proposal and proposal.assessment_id) else '') }}">
+                    <input type="hidden" name="proposal_json" value="{{ proposal_payload }}">
+                    <button type="submit" class="secondary-btn icon-action-btn" title="Download PDF" aria-label="Download PDF" style="padding: 6px 10px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                    </button>
+                </form>
+                <form method="POST" action="{{ url_for('download_ai_proposal', file_type='docx') }}" class="proposal-action-form" style="margin: 0;" data-loading-title="Generating Word Document..." data-loading-subtitle="Compiling complete proposal into Word (DOCX) format.">
+                    <input type="hidden" name="assessment_id" value="{{ assessment.id if assessment else (proposal.assessment_id if (proposal and proposal.assessment_id) else '') }}">
+                    <input type="hidden" name="proposal_json" value="{{ proposal_payload }}">
+                    <button type="submit" class="secondary-btn icon-action-btn" title="Download Word" aria-label="Download Word" style="padding: 6px 10px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                    </button>
+                </form>
+                <button type="button" class="secondary-btn icon-action-btn" onclick="window.print()" title="Print Proposal" aria-label="Print Proposal" style="padding: 6px 10px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Large Format Rich Text Editor Modal -->
+    <div id="richTextEditorModal" class="proposal-modal-overlay no-print" style="display: none; position: fixed; inset: 0; z-index: 1000; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); justify-content: center; align-items: center; padding: 20px;">
+        <div class="rich-editor-container" style="background: var(--bg-surface, #ffffff); border-radius: 12px; width: 100%; max-width: 960px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); border: 1px solid var(--border-color, #e2e8f0); overflow: hidden;">
+            
+            <!-- Editor Header -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; border-bottom: 1px solid var(--border-color, #e2e8f0); background: var(--bg-surface-alt, #f8fafc);">
+                <div>
+                    <span class="eyebrow" style="background: rgba(37,99,235,0.1); color: var(--accent, #2563eb); padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase;">PROPOSAL EDITOR</span>
+                    <h3 id="richEditorModalTitle" style="margin: 3px 0 0 0; font-size: 1.15rem; font-weight: 700; color: var(--text-main, #0f172a);">Edit Section</h3>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button type="button" class="secondary-btn" onclick="closeRichTextEditor()" style="padding: 6px 16px; font-size: 13px;" data-no-loader="true">Cancel</button>
+                    <button type="button" class="primary-btn" onclick="saveRichTextEditor()" style="padding: 6px 20px; font-size: 13px;" data-no-loader="true">Save Changes</button>
+                </div>
+            </div>
+
+            <!-- Sticky Formatting Toolbar -->
+            <div class="rich-editor-toolbar" style="display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 16px; background: #ffffff; border-bottom: 1px solid var(--border-color, #e2e8f0); align-items: center;">
+                <button type="button" class="toolbar-btn" onclick="execEditorCommand('undo')" title="Undo (Ctrl+Z)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></svg></button>
+                <button type="button" class="toolbar-btn" onclick="execEditorCommand('redo')" title="Redo (Ctrl+Y)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6"></path><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"></path></svg></button>
+                <div class="toolbar-divider"></div>
+                <button type="button" class="toolbar-btn" onclick="execEditorCommand('bold')" title="Bold (Ctrl+B)"><strong>B</strong></button>
+                <button type="button" class="toolbar-btn" onclick="execEditorCommand('italic')" title="Italic (Ctrl+I)"><em>I</em></button>
+                <button type="button" class="toolbar-btn" onclick="execEditorCommand('underline')" title="Underline (Ctrl+U)"><u>U</u></button>
+                <button type="button" class="toolbar-btn" onclick="execEditorCommand('strikeThrough')" title="Strikethrough"><s>S</s></button>
+                <div class="toolbar-divider"></div>
+                <button type="button" class="toolbar-btn" onclick="execEditorCommand('formatBlock', '<h1>')" title="Heading 1">H1</button>
+                <button type="button" class="toolbar-btn" onclick="execEditorCommand('formatBlock', '<h2>')" title="Heading 2">H2</button>
+                <button type="button" class="toolbar-btn" onclick="execEditorCommand('formatBlock', '<p>')" title="Paragraph">P</button>
+                <div class="toolbar-divider"></div>
+                <button type="button" class="toolbar-btn" onclick="execEditorCommand('insertUnorderedList')" title="Bullet List">• List</button>
+                <button type="button" class="toolbar-btn" onclick="execEditorCommand('insertOrderedList')" title="Numbered List">1. List</button>
+                <div class="toolbar-divider"></div>
+                <button type="button" class="toolbar-btn" onclick="promptInsertLink()" title="Insert Link">🔗 Link</button>
+                <button type="button" class="toolbar-btn" onclick="triggerImageUpload()" title="Insert Image (or Ctrl+V)">📷 Insert Image</button>
+                <input type="file" id="richEditorFileInput" accept="image/*" style="display: none;" onchange="handleFileImageUpload(event)" />
+                <div class="toolbar-divider"></div>
+                <button type="button" class="toolbar-btn" onclick="execEditorCommand('justifyLeft')" title="Align Left">Left</button>
+                <button type="button" class="toolbar-btn" onclick="execEditorCommand('justifyCenter')" title="Align Center">Center</button>
+                <button type="button" class="toolbar-btn" onclick="execEditorCommand('justifyRight')" title="Align Right">Right</button>
+            </div>
+
+            <!-- Large Writing Canvas -->
+            <div style="flex: 1; padding: 20px; overflow-y: auto; background: #ffffff;">
+                <div style="margin-bottom: 14px;">
+                    <label for="richEditorTitleInput" style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted, #64748b); display: block; margin-bottom: 4px;">Section Title</label>
+                    <input type="text" id="richEditorTitleInput" class="form-control" style="width: 100%; font-size: 14px; font-weight: 600; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1);" placeholder="Section Title" />
+                </div>
+                <div style="position: relative;">
+                    <div id="imageActionPopover" class="no-print" style="display: none; position: absolute; z-index: 1200; background: #ffffff; border: 1px solid var(--border-color, #cbd5e1); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 4px 8px; align-items: center; gap: 6px;">
+                        <span style="font-size: 11px; font-weight: 600; color: var(--text-muted, #64748b);">Image</span>
+                        <button type="button" class="img-delete-btn" onclick="deleteSelectedEditorImage()" title="Delete image" aria-label="Delete image" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 4px; padding: 4px 8px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            <span>Delete</span>
+                        </button>
+                    </div>
+                    <div id="richEditorCanvas" contenteditable="true" class="rich-editor-canvas" style="min-height: 340px; max-height: 50vh; outline: none; font-size: 14px; line-height: 1.7; color: var(--text-main, #0f172a); border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px; padding: 20px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);">
+                    </div>
+                </div>
+                <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted, #64748b); display: flex; justify-content: space-between; align-items: center;">
+                    <span>Tip: Paste any image (<strong>Ctrl+V</strong>) or drag &amp; drop to insert directly into proposal section.</span>
+                    <span id="editorSaveStatus"></span>
+                </div>
+            </div>
+
+            <!-- Editor Footer -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; border-top: 1px solid var(--border-color, #e2e8f0); background: var(--bg-surface-alt, #f8fafc);">
+                <div>
+                    <button type="button" id="richEditorDeleteBtn" class="secondary-btn" onclick="deleteActiveRichSection()" style="display: none; color: #dc2626; border-color: #fecaca; font-size: 12px; padding: 6px 14px;" data-no-loader="true">
+                        🗑️ Delete Custom Section
+                    </button>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button type="button" class="secondary-btn" onclick="closeRichTextEditor()" style="padding: 7px 18px; font-size: 13px;" data-no-loader="true">Cancel</button>
+                    <button type="button" class="primary-btn" onclick="saveRichTextEditor()" style="padding: 7px 22px; font-size: 13px;" data-no-loader="true">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Section Modal -->
+    <div id="addSectionModal" class="proposal-modal-overlay no-print" style="display: none; position: fixed; inset: 0; z-index: 1050; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); justify-content: center; align-items: center; padding: 20px;">
+        <div style="background: #ffffff; border-radius: 10px; width: 100%; max-width: 460px; padding: 24px; border: 1px solid var(--border-color, #e2e8f0); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);">
+            <h3 style="margin: 0 0 12px 0; font-size: 1.2rem; font-weight: 700; color: var(--text-main, #0f172a);">Add Custom Proposal Section</h3>
+            <label for="newSectionTitleInput" style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--text-main); display: block; margin-bottom: 6px;">Section Title</label>
+            <input type="text" id="newSectionTitleInput" class="form-control" style="width: 100%; padding: 8px 12px; font-size: 14px; margin-bottom: 20px;" placeholder="e.g. Project Timeline &amp; Milestones" />
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="secondary-btn" onclick="closeAddSectionModal()" data-no-loader="true">Cancel</button>
+                <button type="button" class="primary-btn" onclick="confirmAddSection()" data-no-loader="true">Add &amp; Edit Section</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Custom Section Confirmation Modal -->
+    <div id="deleteSectionModal" class="proposal-modal-overlay no-print" style="display: none; position: fixed; inset: 0; z-index: 1050; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); justify-content: center; align-items: center; padding: 20px;">
+        <div style="background: #ffffff; border-radius: 10px; width: 100%; max-width: 440px; padding: 24px; border: 1px solid var(--border-color, #e2e8f0); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);">
+            <h3 style="margin: 0 0 8px 0; font-size: 1.15rem; font-weight: 700; color: #dc2626;">Delete Custom Section?</h3>
+            <p id="deleteSectionModalText" style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">Are you sure you want to permanently delete this section? Content will be removed from your proposal.</p>
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="secondary-btn" onclick="closeDeleteSectionModal()" data-no-loader="true">Cancel</button>
+                <button type="button" class="primary-btn" onclick="confirmDeleteSection()" style="background: #dc2626; border-color: #dc2626;" data-no-loader="true">Delete Section</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dedicated AI Section Editor Screen Container -->
+    <div id="aiSectionEditorContainer" class="card no-print" style="display: none; margin-bottom: 24px; padding: 24px; border: 1px solid var(--border-color, #e2e8f0); border-radius: var(--radius-md, 8px); background: var(--bg-surface, #ffffff); box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-color, #e2e8f0); padding-bottom: 12px;">
+            <button type="button" class="secondary-btn" onclick="closeSectionAiEditor()" style="font-size: 12px; padding: 6px 12px;" data-no-loader="true">
+                ← Back to Proposal
+            </button>
+            <span class="eyebrow" style="background: rgba(37,99,235,0.1); color: var(--accent, #2563eb); border: 1px solid rgba(37,99,235,0.2); padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase;">
+                ✨ Section AI Editor
+            </span>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <h2 style="margin: 0 0 4px 0; font-size: 1.3rem; color: var(--text-main, #0f172a); font-weight: 700;">AI SECTION EDITOR</h2>
+            <h3 id="aiEditorSectionTitle" style="margin: 0; font-size: 1.1rem; color: var(--accent, #2563eb); font-weight: 600;">Executive Summary</h3>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted, #64748b);">Edit this section with AI. The AI will only modify this selected section.</p>
+        </div>
+
+        <!-- Error Banner -->
+        <div id="aiEditorErrorBanner" style="display: none; background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 12px 16px; border-radius: 6px; font-size: 13px; margin-bottom: 18px;">
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- CURRENT CONTENT -->
+            <div>
+                <label style="font-size: 12px; font-weight: 700; color: var(--text-main, #0f172a); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;">
+                    Current Content
+                </label>
+                <div id="aiEditorCurrentContent" style="background: var(--bg-surface-alt, #f8fafc); border: 1px solid var(--border-color, #e2e8f0); border-radius: 6px; padding: 14px; font-size: 13px; line-height: 1.6; color: var(--text-main, #334155); max-height: 200px; overflow-y: auto; white-space: pre-wrap;">
+                </div>
+            </div>
+
+            <!-- USER INSTRUCTION INPUT -->
+            <div>
+                <label for="aiEditorUserInstruction" style="font-size: 12px; font-weight: 700; color: var(--text-main, #0f172a); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;">
+                    What would you like AI to change?
+                </label>
+                <textarea id="aiEditorUserInstruction" class="form-control" rows="3" style="width: 100%; font-family: inherit; font-size: 13px; line-height: 1.5; padding: 10px 12px;" placeholder="e.g. Make this more concise, emphasize business value and ROI outcomes, and use a more executive-friendly tone."></textarea>
+            </div>
+
+            <!-- ACTION & LOADING STATE -->
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <button id="aiEditorRewriteBtn" type="button" class="primary-btn" onclick="executeSectionAiRewrite()" style="padding: 8px 20px; font-size: 13px; font-weight: 600;" data-no-loader="true">
+                    ⚡ Rewrite with AI
+                </button>
+                <div id="aiEditorLoadingState" style="display: none; align-items: center; gap: 8px; color: var(--accent, #2563eb); font-size: 13px; font-weight: 600;">
+                    <span id="aiEditorLoadingText">AI is rewriting section...</span>
+                </div>
+            </div>
+
+            <!-- AI-GENERATED VERSION PREVIEW -->
+            <div id="aiEditorPreviewCard" style="display: none; border-top: 1px solid var(--border-color, #e2e8f0); padding-top: 20px; margin-top: 8px;">
+                <label style="font-size: 12px; font-weight: 700; color: var(--status-success, #16a34a); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;">
+                    ✨ AI-Generated Version
+                </label>
+                <div id="aiEditorRewrittenContent" style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 14px; font-size: 13px; line-height: 1.6; color: #166534; white-space: pre-wrap; margin-bottom: 16px;">
+                </div>
+                
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button type="button" class="primary-btn" onclick="acceptSectionAiRewrite()" style="background: #16a34a; border-color: #16a34a; padding: 8px 18px; font-size: 13px;" data-no-loader="true">
+                        ✓ Accept &amp; Save
+                    </button>
+                    <button type="button" class="secondary-btn" onclick="closeSectionAiEditor()" style="padding: 8px 16px; font-size: 13px;" data-no-loader="true">
+                        Keep Current
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enterprise Business Proposal Document Container -->
+    <div id="proposalDocumentContainer" class="business-proposal-document" style="display: flex; flex-direction: column; gap: 28px;">
+        {% set sections_to_render = proposal.sections if (proposal.sections is defined and proposal.sections) else [] %}
+        {% for sec in sections_to_render %}
+        <section id="{{ sec.id }}" class="proposal-section" data-section-id="{{ sec.id }}" data-section-key="{{ sec.key }}" data-section-alt-key="{{ sec.alt_key or '' }}" data-section-type="{{ sec.type or 'default' }}">
+            <div class="proposal-section-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="proposal-drag-handle no-print" title="Drag to reorder section" draggable="true" data-section-id="{{ sec.id }}">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+                    </span>
+                    <h3 class="proposal-section-title" style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-main, #0f172a);">
+                        {{ loop.index }}. {{ sec.title | upper }}
+                    </h3>
+                </div>
+                <div class="proposal-section-actions no-print" style="display: flex; gap: 6px; align-items: center;">
+                    <button type="button" class="proposal-edit-btn secondary-btn" onclick="openRichTextEditor('{{ sec.id }}')" data-no-loader="true" style="padding: 4px 10px; font-size: 12px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg> Edit
+                    </button>
+                    <button type="button" class="proposal-ai-edit-btn secondary-btn" onclick="openSectionAiEditor('{{ sec.id }}')" data-no-loader="true" style="color: var(--accent, #2563eb); border-color: rgba(37,99,235,0.3); padding: 4px 10px; font-size: 12px;">
+                        ✨ Edit with AI
+                    </button>
+                </div>
+            </div>
+            <div class="proposal-section-view" style="margin-top: 10px;">
+                {% if sec.content is string %}
+                    {% if '<' in sec.content and '>' in sec.content %}
+                        {{ sec.content | safe }}
+                    {% else %}
+                        <p>{{ sec.content }}</p>
+                    {% endif %}
+                {% elif sec.content is iterable and sec.content is not mapping %}
+                    {% if sec.is_ordered %}
+                        <ol>
+                        {% for item in sec.content %}
+                            <li>{{ item }}</li>
+                        {% endfor %}
+                        </ol>
+                    {% else %}
+                        <ul>
+                        {% for item in sec.content %}
+                            <li>{{ item }}</li>
+                        {% endfor %}
+                        </ul>
+                    {% endif %}
+                {% else %}
+                    <p>{{ sec.content }}</p>
+                {% endif %}
+            </div>
+        </section>
+        {% endfor %}
+
+        <!-- + Add Section Button Container -->
+        <div class="no-print" style="margin-top: 12px; border: 2px dashed var(--border-color, #cbd5e1); border-radius: var(--radius-md, 8px); padding: 18px; text-align: center; background: var(--bg-surface-alt, #f8fafc);">
+            <button type="button" class="primary-btn" onclick="openAddSectionModal()" data-no-loader="true" style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; padding: 10px 24px; font-size: 13px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span>Add Section</span>
+            </button>
+            <p style="margin: 6px 0 0 0; font-size: 12px; color: var(--text-muted, #64748b);">Create unlimited custom proposal sections.</p>
+        </div>
+    </div>
+
+    <!-- JavaScript State & Logic -->
+    {% if not skip_proposal_scripts %}
+    <script>
+    window.currentProposal = {{ proposal | tojson | safe }};
+
+    let activeRichSectionId = null;
+    let pendingDeleteSectionId = null;
+
+    function showProposalToast(message, type) {
+      let container = document.getElementById("proposalToastContainer");
+      if (!container) {
+        container = document.createElement("div");
+        container.id = "proposalToastContainer";
+        container.className = "tracker-toast-container";
+        container.style.cssText = "position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px;";
+        document.body.appendChild(container);
+      }
+      const toast = document.createElement("div");
+      const isSuccess = type === 'success';
+      const isError = type === 'error';
+      toast.className = `tracker-toast tracker-toast-${type || 'info'}`;
+      toast.style.cssText = `
+        padding: 12px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        display: flex; align-items: center; gap: 10px;
+        color: ${isSuccess ? '#065f46' : (isError ? '#991b1b' : '#1e293b')};
+        background: ${isSuccess ? '#ecfdf5' : (isError ? '#fef2f2' : '#f8fafc')};
+        border: 1px solid ${isSuccess ? '#a7f3d0' : (isError ? '#fecaca' : '#cbd5e1')};
+        animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      `;
+      const icon = isSuccess 
+        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
+        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
+      
+      const span = document.createElement("span");
+      span.textContent = message;
+      toast.innerHTML = icon;
+      toast.appendChild(span);
+      container.appendChild(toast);
+      setTimeout(function() {
+        toast.style.opacity = "0";
+        toast.style.transition = "opacity 0.3s ease";
+        setTimeout(function() { toast.remove(); }, 300);
+      }, 4000);
+    }
+
+    function syncProposalInputs() {
+      const inputsObj = (window.currentProposal && window.currentProposal._inputs) ? window.currentProposal._inputs : {};
+      document.querySelectorAll('.proposal-action-form input[name="proposal_json"]').forEach(function(input) {
+        input.value = JSON.stringify(window.currentProposal);
+      });
+    }
+
+    function execEditorCommand(cmd, val) {
+      document.execCommand(cmd, false, val || null);
+      const canvas = document.getElementById('richEditorCanvas');
+      if (canvas) canvas.focus();
+    }
+
+    function promptInsertLink() {
+      const url = prompt('Enter URL link:', 'https://');
+      if (url) {
+        execEditorCommand('createLink', url);
+      }
+    }
+
+    function triggerImageUpload() {
+      const fileInput = document.getElementById('richEditorFileInput');
+      if (fileInput) fileInput.click();
+    }
+
+    function handleFileImageUpload(evt) {
+      const file = evt.target.files && evt.target.files[0];
+      if (file) {
+        uploadImageFileAndInsert(file);
+      }
+      evt.target.value = '';
+    }
+
+    function uploadImageFileAndInsert(file) {
+      const statusEl = document.getElementById('editorSaveStatus');
+      if (statusEl) statusEl.textContent = 'Uploading image...';
+
+      const formData = new FormData();
+      formData.append('image', file);
+
+      fetch('/grc/ai/proposal/upload-image', {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-No-Loader': 'true'
+        },
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.url) {
+          insertImageIntoCanvas(data.url);
+          if (statusEl) statusEl.textContent = 'Image inserted successfully.';
+        } else {
+          // Fallback to Data URL if upload endpoint error
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            insertImageIntoCanvas(e.target.result);
+            if (statusEl) statusEl.textContent = 'Image inserted.';
+          };
+          reader.readAsDataURL(file);
+        }
+      })
+      .catch(err => {
+        console.error('Image upload error:', err);
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          insertImageIntoCanvas(e.target.result);
+          if (statusEl) statusEl.textContent = 'Image inserted.';
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function insertImageIntoCanvas(src) {
+      const imgHtml = `<img src="${src}" style="max-width: 100%; height: auto; border-radius: 6px; margin: 12px 0; display: block;" alt="Uploaded Image" />`;
+      execEditorCommand('insertHTML', imgHtml);
+    }
+
+    let selectedEditorImg = null;
+
+    function positionImagePopover(img) {
+      const popover = document.getElementById('imageActionPopover');
+      const canvas = document.getElementById('richEditorCanvas');
+      if (!popover || !canvas || !img) return;
+
+      selectedEditorImg = img;
+      img.style.outline = '2px solid var(--accent, #2563eb)';
+      img.style.outlineOffset = '2px';
+
+      const canvasRect = canvas.getBoundingClientRect();
+      const imgRect = img.getBoundingClientRect();
+
+      const topOffset = (imgRect.top - canvasRect.top + canvas.scrollTop) - 36;
+      const leftOffset = Math.max(10, (imgRect.left - canvasRect.left) + (imgRect.width / 2) - 40);
+
+      popover.style.top = Math.max(0, topOffset) + 'px';
+      popover.style.left = leftOffset + 'px';
+      popover.style.display = 'flex';
+    }
+
+    function hideImageActionPopover() {
+      const popover = document.getElementById('imageActionPopover');
+      if (popover) popover.style.display = 'none';
+      if (selectedEditorImg) {
+        selectedEditorImg.style.outline = 'none';
+        selectedEditorImg = null;
+      }
+    }
+
+    function deleteSelectedEditorImage() {
+      if (!selectedEditorImg) return;
+      const img = selectedEditorImg;
+      const canvas = document.getElementById('richEditorCanvas');
+      if (canvas) canvas.focus();
+
+      try {
+        const range = document.createRange();
+        range.selectNode(img);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand('delete');
+      } catch(err) {
+        img.remove();
+      }
+      hideImageActionPopover();
+    }
+
+    // Attach Ctrl+V Image Paste & Click Image Selection Listener to Canvas
+    document.addEventListener('DOMContentLoaded', function() {
+      const canvas = document.getElementById('richEditorCanvas');
+      if (canvas) {
+        canvas.addEventListener('paste', function(e) {
+          const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+          for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+              e.preventDefault();
+              const blob = items[i].getAsFile();
+              uploadImageFileAndInsert(blob);
+              break;
+            }
+          }
+        });
+
+        canvas.addEventListener('click', function(e) {
+          if (e.target && e.target.tagName === 'IMG') {
+            e.stopPropagation();
+            positionImagePopover(e.target);
+          } else {
+            hideImageActionPopover();
+          }
+        });
+
+        canvas.addEventListener('keyup', function(e) {
+          if (!canvas.querySelector('img') || (selectedEditorImg && !canvas.contains(selectedEditorImg))) {
+            hideImageActionPopover();
+          }
+        });
+      }
+
+      document.addEventListener('click', function(e) {
+        const popover = document.getElementById('imageActionPopover');
+        if (popover && popover.style.display !== 'none' && !popover.contains(e.target) && e.target.tagName !== 'IMG') {
+          hideImageActionPopover();
+        }
+      });
+
+      initProposalSectionDragAndDrop();
+    });
+
+    function openRichTextEditor(sectionId) {
+      activeRichSectionId = sectionId;
+      const sections = window.currentProposal.sections || [];
+      const sec = sections.find(s => s.id === sectionId);
+      
+      const modal = document.getElementById('richTextEditorModal');
+      const titleHeader = document.getElementById('richEditorModalTitle');
+      const titleInput = document.getElementById('richEditorTitleInput');
+      const canvas = document.getElementById('richEditorCanvas');
+      const statusEl = document.getElementById('editorSaveStatus');
+      const deleteBtn = document.getElementById('richEditorDeleteBtn');
+
+      if (titleHeader && sec) titleHeader.textContent = `Edit Section: ${sec.title}`;
+      if (titleInput && sec) titleInput.value = sec.title || '';
+      if (statusEl) statusEl.textContent = '';
+      if (deleteBtn) {
+        deleteBtn.style.display = (sec && sec.type === 'custom') ? 'inline-flex' : 'none';
+      }
+
+      let initialHtml = '';
+      if (sec) {
+        if (typeof sec.content === 'string') {
+          if (sec.content.includes('<') && sec.content.includes('>')) {
+            initialHtml = sec.content;
+          } else {
+            initialHtml = `<p>${escapeHtml(sec.content).replace(/\n/g, '<br>')}</p>`;
+          }
+        } else if (Array.isArray(sec.content)) {
+          const tag = sec.is_ordered ? 'ol' : 'ul';
+          initialHtml = `<${tag}>` + sec.content.map(it => `<li>${escapeHtml(it)}</li>`).join('') + `</${tag}>`;
+        }
+      }
+
+      if (canvas) canvas.innerHTML = initialHtml;
+      if (modal) {
+        modal.style.display = 'flex';
+      }
+      if (canvas) canvas.focus();
+    }
+
+    function closeRichTextEditor() {
+      const modal = document.getElementById('richTextEditorModal');
+      if (modal) modal.style.display = 'none';
+      activeRichSectionId = null;
+    }
+
+    function deleteActiveRichSection() {
+      if (!activeRichSectionId) return;
+      const secId = activeRichSectionId;
+      closeRichTextEditor();
+      openDeleteSectionModal(secId);
+    }
+
+    function saveRichTextEditor() {
+      if (!activeRichSectionId) return;
+
+      const titleInput = document.getElementById('richEditorTitleInput');
+      const newTitle = titleInput ? titleInput.value.trim() : '';
+
+      const canvas = document.getElementById('richEditorCanvas');
+      const newHtml = canvas ? canvas.innerHTML.trim() : '';
+
+      const sections = window.currentProposal.sections || [];
+      const secIndex = sections.findIndex(s => s.id === activeRichSectionId);
+
+      if (secIndex !== -1) {
+        if (newTitle) {
+          sections[secIndex].title = newTitle;
+        }
+        sections[secIndex].content = newHtml;
+        const key = sections[secIndex].key;
+        const altKey = sections[secIndex].alt_key;
+        if (key) window.currentProposal[key] = newHtml;
+        if (altKey) window.currentProposal[altKey] = newHtml;
+      }
+
+      window.currentProposal.sections = sections;
+      syncProposalInputs();
+      renderProposalDocumentSections();
+
+      fetch('/grc/ai/proposal/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-No-Loader': 'true'
+        },
+        body: JSON.stringify({ proposal: window.currentProposal })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.proposal) {
+          window.currentProposal = data.proposal;
+          syncProposalInputs();
+          renderProposalDocumentSections();
+        }
+      })
+      .catch(err => {
+        console.error('Save proposal section error:', err);
+      });
+
+      closeRichTextEditor();
+    }
+
+    function openAddSectionModal() {
+      const modal = document.getElementById('addSectionModal');
+      const input = document.getElementById('newSectionTitleInput');
+      if (input) input.value = '';
+      if (modal) modal.style.display = 'flex';
+      if (input) input.focus();
+    }
+
+    function closeAddSectionModal() {
+      const modal = document.getElementById('addSectionModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function confirmAddSection() {
+      const input = document.getElementById('newSectionTitleInput');
+      const title = input ? input.value.trim() : '';
+      if (!title) {
+        alert('Please enter a section title.');
+        return;
+      }
+
+      const sections = window.currentProposal.sections || [];
+      const newIdx = sections.length + 1;
+      const newId = `section-${Date.now()}`;
+      const newSec = {
+        id: newId,
+        key: `custom_${Date.now()}`,
+        title: title,
+        content: '<p>Enter section details...</p>',
+        type: 'custom',
+        is_list: false,
+        order: newIdx
+      };
+
+      sections.push(newSec);
+      window.currentProposal.sections = sections;
+
+      closeAddSectionModal();
+      renderProposalDocumentSections();
+
+      fetch('/grc/ai/proposal/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-No-Loader': 'true'
+        },
+        body: JSON.stringify({ proposal: window.currentProposal })
+      });
+
+      openRichTextEditor(newId);
+    }
+
+    function promptRenameSection(sectionId) {
+      const sections = window.currentProposal.sections || [];
+      const sec = sections.find(s => s.id === sectionId);
+      if (!sec) return;
+
+      const newTitle = prompt('Enter new section title:', sec.title);
+      if (newTitle && newTitle.trim()) {
+        sec.title = newTitle.trim();
+        window.currentProposal.sections = sections;
+        renderProposalDocumentSections();
+
+        fetch('/grc/ai/proposal/update', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-No-Loader': 'true'
+          },
+          body: JSON.stringify({ proposal: window.currentProposal })
+        });
+      }
+    }
+
+    function openDeleteSectionModal(sectionId) {
+      pendingDeleteSectionId = sectionId;
+      const sections = window.currentProposal.sections || [];
+      const sec = sections.find(s => s.id === sectionId);
+
+      const modal = document.getElementById('deleteSectionModal');
+      const msg = document.getElementById('deleteSectionModalText');
+
+      if (msg && sec) {
+        msg.textContent = `Are you sure you want to delete section "${sec.title}"? This action cannot be undone.`;
+      }
+      if (modal) modal.style.display = 'flex';
+    }
+
+    function closeDeleteSectionModal() {
+      const modal = document.getElementById('deleteSectionModal');
+      if (modal) modal.style.display = 'none';
+      pendingDeleteSectionId = null;
+    }
+
+    function confirmDeleteSection() {
+      if (!pendingDeleteSectionId) return;
+
+      let sections = window.currentProposal.sections || [];
+      sections = sections.filter(s => s.id !== pendingDeleteSectionId);
+
+      // Re-index order
+      sections.forEach((s, i) => s.order = i + 1);
+      window.currentProposal.sections = sections;
+
+      closeDeleteSectionModal();
+      renderProposalDocumentSections();
+
+      fetch('/grc/ai/proposal/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-No-Loader': 'true'
+        },
+        body: JSON.stringify({ proposal: window.currentProposal })
+      });
+    }
+
+    function renderProposalDocumentSections() {
+      const container = document.getElementById('proposalDocumentContainer');
+      if (!container) return;
+
+      const sections = window.currentProposal.sections || [];
+      let html = '';
+
+      sections.forEach((sec, idx) => {
+        const num = idx + 1;
+        const isCustom = sec.type === 'custom';
+
+        let contentHtml = '';
+        if (typeof sec.content === 'string') {
+          contentHtml = (sec.content.includes('<') && sec.content.includes('>')) ? sec.content : `<p>${escapeHtml(sec.content)}</p>`;
+        } else if (Array.isArray(sec.content)) {
+          const tag = sec.is_ordered ? 'ol' : 'ul';
+          contentHtml = `<${tag}>` + sec.content.map(it => `<li>${escapeHtml(it)}</li>`).join('') + `</${tag}>`;
+        } else {
+          contentHtml = `<p>${escapeHtml(String(sec.content || ''))}</p>`;
+        }
+
+        html += `
+        <section id="${sec.id}" class="proposal-section" data-section-id="${sec.id}" data-section-key="${sec.key || ''}" data-section-type="${sec.type || 'default'}">
+            <div class="proposal-section-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="proposal-drag-handle no-print" title="Drag to reorder section" draggable="true" data-section-id="${sec.id}">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+                    </span>
+                    <h3 class="proposal-section-title" style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-main, #0f172a);">
+                        ${num}. ${escapeHtml(sec.title).toUpperCase()}
+                    </h3>
+                </div>
+                <div class="proposal-section-actions no-print" style="display: flex; gap: 6px; align-items: center;">
+                    <button type="button" class="proposal-edit-btn secondary-btn" onclick="openRichTextEditor('${sec.id}')" data-no-loader="true" style="padding: 4px 10px; font-size: 12px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg> Edit
+                    </button>
+                    <button type="button" class="proposal-ai-edit-btn secondary-btn" onclick="openSectionAiEditor('${sec.id}')" data-no-loader="true" style="color: var(--accent, #2563eb); border-color: rgba(37,99,235,0.3); padding: 4px 10px; font-size: 12px;">
+                        ✨ Edit with AI
+                    </button>
+                </div>
+            </div>
+            <div class="proposal-section-view" style="margin-top: 10px;">
+                ${contentHtml}
+            </div>
+        </section>
+        `;
+      });
+
+      const proposalPayloadStr = escapeHtml(JSON.stringify(window.currentProposal));
+
+      html += `
+      <div class="no-print" style="margin-top: 12px; border: 2px dashed var(--border-color, #cbd5e1); border-radius: var(--radius-md, 8px); padding: 18px; text-align: center; background: var(--bg-surface-alt, #f8fafc);">
+          <button type="button" class="primary-btn" onclick="openAddSectionModal()" data-no-loader="true" style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; padding: 10px 24px; font-size: 13px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              <span>Add Section</span>
+          </button>
+          <p style="margin: 6px 0 0 0; font-size: 12px; color: var(--text-muted, #64748b);">Create unlimited custom proposal sections.</p>
+      </div>
+      `;
+
+      container.innerHTML = html;
+      renderProposalTOC();
+      initProposalSectionDragAndDrop();
+    }
+
+    function renderProposalTOC() {
+      const tocList = document.getElementById('proposalTocList') || document.querySelector('.workspace-toc-list');
+      if (!tocList) return;
+
+      const sections = window.currentProposal.sections || [];
+      let tocHtml = '';
+
+      sections.forEach((sec, idx) => {
+        const num = idx + 1;
+        tocHtml += `<a href="#${sec.id}" class="workspace-toc-item toc-item" data-no-loader="true">${num}. ${escapeHtml(sec.title)}</a>`;
+      });
+
+      tocList.innerHTML = tocHtml;
+
+      // Re-attach scroll handlers
+      tocList.querySelectorAll('.toc-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+          const targetId = this.getAttribute('href');
+          if (targetId && targetId.startsWith('#')) {
+            e.preventDefault();
+            const targetEl = document.querySelector(targetId);
+            if (targetEl) {
+              targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          }
+        });
+      });
+    }
+
+    let draggedSectionId = null;
+
+    function initProposalSectionDragAndDrop() {
+      const container = document.getElementById('proposalDocumentContainer');
+      if (!container) return;
+
+      const sections = container.querySelectorAll('.proposal-section');
+      sections.forEach(section => {
+        const handle = section.querySelector('.proposal-drag-handle');
+        if (handle) {
+          handle.addEventListener('dragstart', function(e) {
+            const secId = section.getAttribute('data-section-id');
+            draggedSectionId = secId;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', secId);
+            setTimeout(() => {
+              section.classList.add('is-dragging');
+            }, 0);
+          });
+
+          handle.addEventListener('dragend', function() {
+            section.classList.remove('is-dragging');
+            clearDragIndicators();
+            draggedSectionId = null;
+          });
+        }
+
+        section.addEventListener('dragover', function(e) {
+          e.preventDefault();
+          const activeId = draggedSectionId || e.dataTransfer.getData('text/plain');
+          const targetId = section.getAttribute('data-section-id');
+          if (!activeId || activeId === targetId) {
+            return;
+          }
+          e.dataTransfer.dropEffect = 'move';
+
+          const rect = section.getBoundingClientRect();
+          const midpoint = rect.top + rect.height / 2;
+          const placement = e.clientY < midpoint ? 'before' : 'after';
+
+          sections.forEach(s => {
+            if (s !== section) {
+              s.classList.remove('drag-over-above', 'drag-over-below');
+            }
+          });
+
+          if (placement === 'before') {
+            section.classList.add('drag-over-above');
+            section.classList.remove('drag-over-below');
+          } else {
+            section.classList.add('drag-over-below');
+            section.classList.remove('drag-over-above');
+          }
+        });
+
+        section.addEventListener('dragleave', function(e) {
+          if (!section.contains(e.relatedTarget)) {
+            section.classList.remove('drag-over-above', 'drag-over-below');
+          }
+        });
+
+        section.addEventListener('drop', function(e) {
+          e.preventDefault();
+          clearDragIndicators();
+          const sourceId = draggedSectionId || e.dataTransfer.getData('text/plain');
+          const targetId = section.getAttribute('data-section-id');
+          draggedSectionId = null;
+
+          if (!sourceId || !targetId || sourceId === targetId) {
+            return;
+          }
+
+          const rect = section.getBoundingClientRect();
+          const midpoint = rect.top + rect.height / 2;
+          const placement = e.clientY < midpoint ? 'before' : 'after';
+
+          reorderProposalSection(sourceId, targetId, placement);
+        });
+      });
+    }
+
+    function clearDragIndicators() {
+      document.querySelectorAll('.proposal-section').forEach(s => {
+        s.classList.remove('is-dragging', 'drag-over-above', 'drag-over-below');
+      });
+    }
+
+    function reorderProposalSection(sourceId, targetId, placement) {
+      if (!window.currentProposal || !Array.isArray(window.currentProposal.sections)) return;
+      const sections = [...window.currentProposal.sections];
+
+      const fromIndex = sections.findIndex(s => s.id === sourceId);
+      let toIndex = sections.findIndex(s => s.id === targetId);
+
+      if (fromIndex === -1 || toIndex === -1) return;
+
+      if (placement === 'after') {
+        toIndex = toIndex + 1;
+      }
+      if (fromIndex < toIndex) {
+        toIndex = toIndex - 1;
+      }
+
+      if (fromIndex === toIndex) return;
+
+      const [movedSec] = sections.splice(fromIndex, 1);
+      sections.splice(toIndex, 0, movedSec);
+
+      sections.forEach((sec, idx) => {
+        sec.order = idx + 1;
+      });
+
+      window.currentProposal.sections = sections;
+
+      renderProposalDocumentSections();
+      syncProposalInputs();
+
+      fetch('/grc/ai/proposal/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-No-Loader': 'true'
+        },
+        body: JSON.stringify({ proposal: window.currentProposal })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.proposal) {
+          window.currentProposal = data.proposal;
+          syncProposalInputs();
+        }
+      })
+      .catch(err => {
+        console.error('Save reordered sections error:', err);
+      });
+    }
+
+    function getSectionContentText(sectionEl) {
+      if (!sectionEl) return '';
+      const viewEl = sectionEl.querySelector('.proposal-section-view');
+      return viewEl ? viewEl.textContent.trim() : '';
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function formatSectionContentToText(content, isOrdered = false) {
+      if (content === null || content === undefined) return '';
+
+      if (Array.isArray(content)) {
+        return content.map((item, idx) => {
+          const clean = String(item || '').replace(/<[^>]+>/g, '').trim();
+          return isOrdered ? `${idx + 1}. ${clean}` : `• ${clean}`;
+        }).filter(line => line.length > 0).join('\n');
+      }
+
+      if (typeof content === 'object') {
+        if (content.amount) {
+          let res = `Amount: ${content.amount}`;
+          if (content.description) res += `\nDescription: ${content.description}`;
+          return res;
+        }
+        try {
+          return JSON.stringify(content, null, 2);
+        } catch (e) {
+          return String(content);
+        }
+      }
+
+      let str = String(content);
+      if (str.includes('<') && str.includes('>')) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = str;
+
+        const lis = tempDiv.querySelectorAll('li');
+        if (lis.length > 0) {
+          let lines = [];
+          lis.forEach((li, idx) => {
+            const text = li.textContent.trim();
+            if (text) {
+              lines.push(isOrdered ? `${idx + 1}. ${text}` : `• ${text}`);
+            }
+          });
+          if (lines.length > 0) {
+            return lines.join('\n');
+          }
+        }
+
+        let text = tempDiv.innerHTML
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<\/p>/gi, '\n\n')
+          .replace(/<\/div>/gi, '\n')
+          .replace(/<[^>]+>/g, '');
+
+        const decoder = document.createElement('textarea');
+        decoder.innerHTML = text;
+        return decoder.value.replace(/\n{3,}/g, '\n\n').trim();
+      }
+
+      return str.trim();
+    }
+
+    let activeAiSectionId = null;
+    let activeAiRewrittenText = null;
+
+    function openSectionAiEditor(sectionId) {
+      const sections = window.currentProposal.sections || [];
+      const sec = sections.find(s => s.id === sectionId);
+      if (!sec) return;
+
+      activeAiSectionId = sectionId;
+      activeAiRewrittenText = null;
+
+      const titleHeader = document.getElementById('aiEditorSectionTitle');
+      if (titleHeader) titleHeader.textContent = `${sec.title}`;
+
+      const formattedContent = formatSectionContentToText(sec.content, sec.is_ordered);
+
+      const currentContentBox = document.getElementById('aiEditorCurrentContent');
+      if (currentContentBox) {
+        currentContentBox.textContent = formattedContent;
+      }
+
+      const promptInput = document.getElementById('aiEditorUserInstruction');
+      if (promptInput) promptInput.value = '';
+
+      const errorBanner = document.getElementById('aiEditorErrorBanner');
+      if (errorBanner) errorBanner.style.display = 'none';
+
+      const previewCard = document.getElementById('aiEditorPreviewCard');
+      if (previewCard) previewCard.style.display = 'none';
+
+      const docEl = document.getElementById('proposalDocumentContainer');
+      if (docEl) docEl.style.display = 'none';
+
+      const editorContainer = document.getElementById('aiSectionEditorContainer');
+      if (editorContainer) {
+        editorContainer.style.display = 'block';
+        editorContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      if (promptInput) promptInput.focus();
+    }
+
+    function closeSectionAiEditor() {
+      const editorContainer = document.getElementById('aiSectionEditorContainer');
+      if (editorContainer) editorContainer.style.display = 'none';
+
+      const docEl = document.getElementById('proposalDocumentContainer');
+      if (docEl) docEl.style.display = 'flex';
+
+      if (activeAiSectionId) {
+        const targetSection = document.getElementById(activeAiSectionId);
+        if (targetSection) targetSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    function executeSectionAiRewrite() {
+      if (!activeAiSectionId) return;
+      const sections = window.currentProposal.sections || [];
+      const sec = sections.find(s => s.id === activeAiSectionId);
+      if (!sec) return;
+
+      const requestingSectionId = activeAiSectionId;
+
+      const promptInput = document.getElementById('aiEditorUserInstruction');
+      const userInstruction = promptInput ? promptInput.value.trim() : '';
+
+      if (!userInstruction) {
+        const errorBanner = document.getElementById('aiEditorErrorBanner');
+        if (errorBanner) {
+          errorBanner.textContent = 'Please enter an instruction describing what you would like AI to change.';
+          errorBanner.style.display = 'block';
+        }
+        return;
+      }
+
+      const errorBanner = document.getElementById('aiEditorErrorBanner');
+      if (errorBanner) errorBanner.style.display = 'none';
+
+      const rewriteBtn = document.getElementById('aiEditorRewriteBtn');
+      const loadingState = document.getElementById('aiEditorLoadingState');
+      const loadingText = document.getElementById('aiEditorLoadingText');
+      const previewCard = document.getElementById('aiEditorPreviewCard');
+
+      if (rewriteBtn) rewriteBtn.disabled = true;
+      if (loadingState) loadingState.style.display = 'inline-flex';
+      if (loadingText) loadingText.textContent = 'AI is rewriting ' + sec.title + '...';
+      if (previewCard) previewCard.style.display = 'none';
+
+      const proposalContext = {
+        client: (window.currentProposal && window.currentProposal.client) || '',
+        project_type: (window.currentProposal && window.currentProposal.project_type) || '',
+        timeline: (window.currentProposal && window.currentProposal._inputs && window.currentProposal._inputs.timeline) || '',
+        budget: (window.currentProposal && window.currentProposal.pricing && window.currentProposal.pricing.amount) || ''
+      };
+
+      const formattedContent = formatSectionContentToText(sec.content, sec.is_ordered);
+
+      fetch('/grc/ai/proposal/edit-section', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-No-Loader': 'true'
+        },
+        body: JSON.stringify({
+          proposal_id: (window.currentProposal && (window.currentProposal.id || window.currentProposal.assessment_id)) || null,
+          section_id: activeAiSectionId,
+          section_title: sec.title,
+          current_content: formattedContent,
+          user_instruction: userInstruction,
+          proposal_context: proposalContext
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (requestingSectionId !== activeAiSectionId) {
+          // Race condition check: user navigated away or opened another section
+          return;
+        }
+
+        if (rewriteBtn) rewriteBtn.disabled = false;
+        if (loadingState) loadingState.style.display = 'none';
+
+        if (data.success && data.rewritten_content) {
+          activeAiRewrittenText = data.rewritten_content;
+          const rewrittenBox = document.getElementById('aiEditorRewrittenContent');
+          if (rewrittenBox) rewrittenBox.textContent = data.rewritten_content;
+          if (previewCard) previewCard.style.display = 'block';
+          if (previewCard) previewCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+          if (errorBanner) {
+            errorBanner.textContent = data.error || 'AI could not rewrite this section. Please try again.';
+            errorBanner.style.display = 'block';
+          }
+        }
+      })
+      .catch(err => {
+        if (requestingSectionId !== activeAiSectionId) return;
+
+        if (rewriteBtn) rewriteBtn.disabled = false;
+        if (loadingState) loadingState.style.display = 'none';
+        if (errorBanner) {
+          errorBanner.textContent = 'Error: ' + (err.message || 'Unable to contact AI service');
+          errorBanner.style.display = 'block';
+        }
+      });
+    }
+
+    function acceptSectionAiRewrite() {
+      if (!activeAiSectionId || !activeAiRewrittenText) return;
+      const sections = window.currentProposal.sections || [];
+      const secIndex = sections.findIndex(s => s.id === activeAiSectionId);
+
+      if (secIndex !== -1) {
+        const formattedNewContent = `<p>${escapeHtml(activeAiRewrittenText).replace(/\n/g, '<br>')}</p>`;
+        sections[secIndex].content = formattedNewContent;
+        const key = sections[secIndex].key;
+        const altKey = sections[secIndex].alt_key;
+        if (key) window.currentProposal[key] = formattedNewContent;
+        if (altKey) window.currentProposal[altKey] = formattedNewContent;
+
+        window.currentProposal.sections = sections;
+        syncProposalInputs();
+        renderProposalDocumentSections();
+
+        fetch('/grc/ai/proposal/update', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-No-Loader': 'true'
+          },
+          body: JSON.stringify({ proposal: window.currentProposal })
+        });
+      }
+      closeSectionAiEditor();
+    }
+    </script>
+    {% endif %}
+</div>
+{% endif %}
+{% endif %}

@@ -1,0 +1,707 @@
+{% extends "base.html" %}
+
+{% block title %}Proposal Tracker — Proposal Generator{% endblock %}
+
+{% block page_name %}Proposal Tracker{% endblock %}
+
+{% block main_class %}tracker-main-content{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="tracker-shell">
+  <!-- Page Header -->
+  <div class="tracker-header">
+    <div class="tracker-header-left">
+      <h1 class="tracker-page-title">Proposal Tracker</h1>
+      <p class="tracker-page-subtitle">Track proposal status, evaluation pipeline, and client engagement analytics.</p>
+    </div>
+  </div>
+
+  <!-- Statistics Cards Row -->
+  <div class="stats-grid">
+    <!-- Card 1: Total Proposals -->
+    <div class="stat-card stat-total">
+      <div class="stat-header">
+        <span class="stat-label">Total Proposals</span>
+        <div class="stat-icon-wrapper total-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+        </div>
+      </div>
+      <div class="stat-value">{{ total_count or 0 }}</div>
+      <div class="stat-footer text-muted">All generated proposals</div>
+    </div>
+
+    <!-- Card 2: Submitted -->
+    <div class="stat-card stat-submitted">
+      <div class="stat-header">
+        <span class="stat-label">Submitted</span>
+        <div class="stat-icon-wrapper submitted-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        </div>
+      </div>
+      <div class="stat-value text-blue">{{ submitted_count or 0 }}</div>
+      <div class="stat-footer text-muted">Delivered to client</div>
+    </div>
+
+    <!-- Card 3: In Evaluation -->
+    <div class="stat-card stat-evaluation">
+      <div class="stat-header">
+        <span class="stat-label">In Evaluation</span>
+        <div class="stat-icon-wrapper eval-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 16 14"></polyline></svg>
+        </div>
+      </div>
+      <div class="stat-value text-amber">{{ in_eval_count or 0 }}</div>
+      <div class="stat-footer text-muted">Under client review</div>
+    </div>
+
+    <!-- Card 4: Approved -->
+    <div class="stat-card stat-approved">
+      <div class="stat-header">
+        <span class="stat-label">Approved</span>
+        <div class="stat-icon-wrapper approved-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+        </div>
+      </div>
+      <div class="stat-value text-green">{{ approved_count or 0 }}</div>
+      <div class="stat-footer text-muted">Accepted engagements</div>
+    </div>
+
+    <!-- Card 5: Rejected -->
+    <div class="stat-card stat-rejected">
+      <div class="stat-header">
+        <span class="stat-label">Rejected</span>
+        <div class="stat-icon-wrapper rejected-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+        </div>
+      </div>
+      <div class="stat-value text-red">{{ rejected_count or 0 }}</div>
+      <div class="stat-footer text-muted">Declined proposals</div>
+    </div>
+  </div>
+
+  <!-- Analytics Visual Overview Section -->
+  {% if total_count and total_count > 0 %}
+  <div class="analytics-grid">
+    <!-- Chart Card 1: Status Overview -->
+    <div class="analytics-card">
+      <div class="analytics-header">
+        <h3 class="analytics-title">Status Distribution</h3>
+        <span class="analytics-badge">Real Data</span>
+      </div>
+      <div class="chart-container" style="position: relative; height: 190px; width: 100%;">
+        <canvas id="statusChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Chart Card 2: Activity Trend -->
+    <div class="analytics-card">
+      <div class="analytics-header">
+        <h3 class="analytics-title">Activity Trend</h3>
+        <span class="analytics-badge">Timeline</span>
+      </div>
+      <div class="chart-container" style="position: relative; height: 190px; width: 100%;">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Card 3: Scope Breakdown -->
+    <div class="analytics-card">
+      <div class="analytics-header">
+        <h3 class="analytics-title">Scope &amp; Services Breakdown</h3>
+        <span class="analytics-badge">Top Domains</span>
+      </div>
+      <div class="scope-breakdown-list">
+        {% if project_type_counts %}
+          {% for project_type, count in project_type_counts.items() %}
+          <div class="scope-item">
+            <div class="scope-info">
+              <span class="scope-name">{{ project_type }}</span>
+              <span class="scope-count">{{ count }} proposal{% if count > 1 %}s{% endif %}</span>
+            </div>
+            <div class="scope-bar-bg">
+              {% set pct = (count / total_count * 100) | round | int if total_count > 0 else 0 %}
+              <div class="scope-bar-fill" style="width: {{ pct }}%;"></div>
+            </div>
+          </div>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Recent Submissions Table Section -->
+  <div class="recent-proposals-section">
+    <div class="section-card">
+      <div class="section-card-header">
+        <div>
+          <h2 class="section-title">Recent Submissions</h2>
+          <p class="section-subtitle">Click any ID to open and review the full document in workspace.</p>
+        </div>
+      </div>
+
+      {% if proposals and proposals|length > 0 %}
+      <div class="table-responsive">
+        <table class="proposals-table">
+          <thead>
+            <tr>
+              <th>PROPOSAL ID</th>
+              <th>CLIENT / ORGANIZATION</th>
+              <th>PROJECT SCOPE / TYPE</th>
+              <th>TEMPLATE</th>
+              <th>CONTRIBUTION</th>
+              <th>CREATED DATE</th>
+              <th>SUBMITTED DATE</th>
+              <th>STATUS</th>
+              <th>DEAL OUTCOME</th>
+              <th style="text-align: right; width: 50px;">&#8942;</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in proposals %}
+            <tr class="proposal-row" data-search-text="{{ p.code|lower }} {{ p.client|lower }} {{ p.project_type|lower }} {{ p.budget|lower }} {{ p.status|lower }} {{ (p.deal_outcome or 'open')|lower }}">
+              <td class="proposal-id-cell">
+                <a href="{{ url_for('select_assessment', assessment_id=p.assessment_id, next=url_for('ai_grc')) }}" class="proposal-code-link" title="Open {{ p.code }}">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                  <span>{{ p.code }}</span>
+                </a>
+              </td>
+              <td class="client-cell">
+                <div class="client-name">{{ p.client }}</div>
+              </td>
+              <td class="project-cell">
+                <div class="project-title">{{ p.project_type }}</div>
+              </td>
+              <td class="template-cell">
+                <span style="font-size: 11px; font-weight: 600; background: #f1f5f9; color: #475569; padding: 2px 7px; border-radius: 4px; border: 1px solid #cbd5e1;">
+                  &#128196; {{ p.template_name or 'Standard Professional' }}
+                </span>
+              </td>
+              <td class="budget-cell">
+                <span class="budget-tag">{{ p.budget }}</span>
+              </td>
+              <td class="date-cell">{{ p.created_at }}</td>
+              <td class="submitted-date-cell">
+                <div class="submitted-date-wrapper" tabindex="0" aria-label="Submitted date {{ p.submitted_at or 'Not submitted' }}. Hover or focus for proposal expiration info.">
+                  <span class="submitted-date-text">{{ p.submitted_at or '-' }}</span>
+                  {% if p.expiration %}
+                  <div class="expiration-tooltip" role="tooltip">
+                    <div class="tooltip-header">{{ p.expiration.tooltip_title }}</div>
+                    <div class="tooltip-status-badge {% if p.expiration.is_expired %}badge-expired{% else %}badge-active{% endif %}">
+                      {{ p.expiration.tooltip_line1 }}
+                    </div>
+                    <div class="tooltip-detail-line">{{ p.expiration.tooltip_line2 }}</div>
+                    <div class="tooltip-date-line">{{ p.expiration.tooltip_line3 }}</div>
+                  </div>
+                  {% endif %}
+                </div>
+              </td>
+              <td class="status-cell">
+                {% if p.status == 'Submitted' %}
+                  <span class="status-pill status-submitted">
+                    <span class="pill-dot"></span> Submitted
+                  </span>
+                {% elif p.status == 'Approved' %}
+                  <span class="status-pill status-approved">
+                    <span class="pill-dot"></span> Approved
+                  </span>
+                {% elif p.status == 'Rejected' %}
+                  <span class="status-pill status-rejected">
+                    <span class="pill-dot"></span> Rejected
+                  </span>
+                {% elif p.status == 'Expired' %}
+                  <span class="status-pill status-expired">
+                    <span class="pill-dot"></span> Expired
+                  </span>
+                {% else %}
+                  <span class="status-pill status-eval">
+                    <span class="pill-dot"></span> In Evaluation
+                  </span>
+                {% endif %}
+              </td>
+              <td class="deal-outcome-cell">
+                <select class="deal-outcome-select deal-outcome-{{ (p.deal_outcome or 'Open')|lower }}" 
+                        data-assessment-id="{{ p.assessment_id }}"
+                        onchange="updateDealOutcome(this, '{{ p.assessment_id }}')"
+                        aria-label="Deal outcome for {{ p.code }}">
+                  <option value="Open" {% if p.deal_outcome == 'Open' or not p.deal_outcome %}selected{% endif %}>Open</option>
+                  <option value="Won" {% if p.deal_outcome == 'Won' %}selected{% endif %}>Won</option>
+                  <option value="Lost" {% if p.deal_outcome == 'Lost' %}selected{% endif %}>Lost</option>
+                </select>
+              </td>
+
+              <td class="action-cell" style="text-align: right; position: relative;">
+                <div class="row-menu-wrapper" style="position: relative; display: inline-block;">
+                  <button type="button" 
+                          class="three-dots-btn" 
+                          onclick="toggleTrackerRowMenu(event, 'row-menu-{{ p.assessment_id }}')" 
+                          title="Proposal Actions"
+                          aria-label="Proposal Actions">
+                    &#8942;
+                  </button>
+                  <div id="row-menu-{{ p.assessment_id }}" class="tracker-dropdown-menu" style="display: none;">
+                    <button type="button" class="tracker-dropdown-item" onclick="downloadProposalFromTracker('{{ p.assessment_id }}', 'pdf')">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                      <span>Download PDF</span>
+                    </button>
+                    <button type="button" class="tracker-dropdown-item" onclick="downloadProposalFromTracker('{{ p.assessment_id }}', 'docx')">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                      <span>Download Word</span>
+                    </button>
+                    <a href="{{ url_for('select_assessment', assessment_id=p.assessment_id, next=url_for('ai_grc')) }}" class="tracker-dropdown-item">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                      <span>Print Proposal</span>
+                    </a>
+                    <div class="tracker-dropdown-divider"></div>
+                    <button type="button" 
+                            class="tracker-dropdown-item tracker-dropdown-danger delete-proposal-btn" 
+                            data-assessment-id="{{ p.assessment_id }}" 
+                            data-proposal-code="{{ p.code }}" 
+                            data-client-name="{{ p.client }}" 
+                            data-proposal-status="{{ p.status }}"
+                            onclick="closeAllTrackerRowMenus();">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                      <span>Delete Proposal</span>
+                    </button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <!-- Empty State -->
+      <div class="empty-state-card">
+        <div class="empty-state-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+        </div>
+        <h3 class="empty-state-title">No proposals yet</h3>
+        <p class="empty-state-text">Create your first AI proposal to get started with client proposal tracking.</p>
+        <a href="{{ url_for('ai_grc_new') }}" class="primary-btn" style="margin-top: 16px; display: inline-flex; align-items: center; gap: 6px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>Create New Proposal</span>
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Delete Proposal Confirmation Modal -->
+<div id="deleteConfirmationModal" class="proposal-modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="proposal-modal-card">
+    <div class="proposal-modal-header">
+      <div class="modal-danger-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+      </div>
+      <div>
+        <h3 id="modalTitle" class="proposal-modal-title">Delete Proposal?</h3>
+        <p class="proposal-modal-subtitle">Permanent Deletion Warning</p>
+      </div>
+      <button type="button" class="modal-close-btn" id="cancelDeleteCross" aria-label="Close">&times;</button>
+    </div>
+    <div class="proposal-modal-body">
+      <p id="deleteModalMessage">Are you sure you want to delete proposal <strong id="deleteProposalCode">PROP-2026-333</strong>?</p>
+      <p class="modal-warning-text">This action will permanently remove this proposal and its associated proposal data. This cannot be undone.</p>
+    </div>
+    <div class="proposal-modal-footer">
+      <button type="button" class="secondary-btn" id="cancelDeleteBtn">Cancel</button>
+      <button type="button" class="danger-btn-modal" id="confirmDeleteBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        <span id="confirmDeleteText">Delete Proposal</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Tracker Toast Notification Container -->
+<div id="trackerToastContainer" class="tracker-toast-container"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function toggleTrackerRowMenu(evt, menuId) {
+    if (evt) evt.stopPropagation();
+    const menu = document.getElementById(menuId);
+    const isVisible = menu && menu.style.display === "block";
+    closeAllTrackerRowMenus();
+    if (menu && !isVisible) {
+      const btn = evt.currentTarget || (evt.target ? evt.target.closest("button") : null);
+      if (btn) {
+        const btnRect = btn.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - btnRect.bottom;
+        if (spaceBelow < 210) {
+          menu.style.top = "auto";
+          menu.style.bottom = "100%";
+          menu.style.marginBottom = "4px";
+          menu.style.marginTop = "0";
+        } else {
+          menu.style.top = "32px";
+          menu.style.bottom = "auto";
+          menu.style.marginTop = "0";
+          menu.style.marginBottom = "0";
+        }
+      }
+      menu.style.display = "block";
+    }
+  }
+
+  function closeAllTrackerRowMenus() {
+    document.querySelectorAll(".tracker-dropdown-menu").forEach(function (m) {
+      m.style.display = "none";
+    });
+  }
+
+  document.addEventListener("click", function (evt) {
+    if (!evt.target.closest(".row-menu-wrapper")) {
+      closeAllTrackerRowMenus();
+    }
+  });
+
+  function downloadProposalFromTracker(assessmentId, fileType) {
+    closeAllTrackerRowMenus();
+    fetch(`/select-assessment/${assessmentId}`, { method: "GET" })
+      .then(function () {
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = `/grc/ai/proposal/download/${fileType}`;
+        document.body.appendChild(form);
+        form.submit();
+        setTimeout(function () { form.remove(); }, 1000);
+      })
+      .catch(function (err) {
+        console.error("Download failed:", err);
+      });
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    let activeStatusChart = null;
+    let activeTrendChart = null;
+
+    // Search bar functionality for Proposal Tracker
+    const searchInput = document.getElementById("trackerSearchInput");
+    if (searchInput) {
+      function performTrackerSearch() {
+        const query = (searchInput.value || "").trim().toLowerCase();
+        const rows = document.querySelectorAll(".proposals-table tbody tr.proposal-row");
+        let visibleCount = 0;
+        
+        rows.forEach(function (row) {
+          const searchText = (row.getAttribute("data-search-text") || row.textContent).toLowerCase();
+          if (!query || searchText.includes(query)) {
+            row.style.display = "";
+            visibleCount++;
+          } else {
+            row.style.display = "none";
+          }
+        });
+
+        let noResultsRow = document.getElementById("trackerSearchNoResults");
+        const tbody = document.querySelector(".proposals-table tbody");
+        if (tbody) {
+          if (visibleCount === 0 && rows.length > 0 && query !== "") {
+            if (!noResultsRow) {
+              noResultsRow = document.createElement("tr");
+              noResultsRow.id = "trackerSearchNoResults";
+              noResultsRow.innerHTML = `
+                <td colspan="10" style="text-align: center; padding: 36px 20px; color: var(--text-muted, #64748b);">
+                  <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px; color: var(--text-main, #0f172a);">No matching proposals found</div>
+                  <div style="font-size: 12px;">No proposals matched "${query.replace(/</g, "&lt;").replace(/>/g, "&gt;")}". Try searching by client name or proposal ID.</div>
+                </td>
+              `;
+              tbody.appendChild(noResultsRow);
+            } else {
+              noResultsRow.style.display = "";
+              const subMsg = noResultsRow.querySelector("div:last-child");
+              if (subMsg) subMsg.textContent = `No proposals matched "${query}". Try searching by client name or proposal ID.`;
+            }
+          } else if (noResultsRow) {
+            noResultsRow.style.display = "none";
+          }
+        }
+      }
+
+      searchInput.addEventListener("input", performTrackerSearch);
+      searchInput.addEventListener("keyup", performTrackerSearch);
+      searchInput.addEventListener("change", performTrackerSearch);
+    }
+
+    // 1. Chart setup if elements exist
+    if (typeof Chart !== "undefined") {
+      const statusCtx = document.getElementById("statusChart");
+      if (statusCtx) {
+        activeStatusChart = new Chart(statusCtx.getContext("2d"), {
+          type: "doughnut",
+          data: {
+            labels: ["Submitted", "In Evaluation", "Approved", "Rejected"],
+            datasets: [{
+              data: [
+                {{ (status_counts.get('Submitted', 0) if status_counts else 0) }},
+                {{ (status_counts.get('In Evaluation', 0) if status_counts else 0) }},
+                {{ (status_counts.get('Approved', 0) if status_counts else 0) }},
+                {{ (status_counts.get('Rejected', 0) if status_counts else 0) }}
+              ],
+              backgroundColor: ["#3b82f6", "#f59e0b", "#10b981", "#ef4444"],
+              borderWidth: 2,
+              borderColor: "#ffffff"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: "bottom",
+                labels: { font: { family: "Inter", size: 12 }, boxWidth: 12, padding: 14 }
+              }
+            },
+            cutout: "68%"
+          }
+        });
+      }
+
+      const trendCtx = document.getElementById("trendChart");
+      if (trendCtx) {
+        const monthLabels = {{ (monthly_trend_keys or []) | tojson }};
+        const monthValues = {{ (monthly_trend_values or []) | tojson }};
+        activeTrendChart = new Chart(trendCtx.getContext("2d"), {
+          type: "bar",
+          data: {
+            labels: monthLabels,
+            datasets: [{
+              label: "Proposals Generated",
+              data: monthValues,
+              backgroundColor: "rgba(37, 99, 235, 0.85)",
+              borderColor: "#2563eb",
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true, ticks: { stepSize: 1, font: { family: "Inter", size: 11 } }, grid: { color: "#f1f5f9" } },
+              x: { ticks: { font: { family: "Inter", size: 11 } }, grid: { display: false } }
+            }
+          }
+        });
+      }
+    }
+
+    // 2. Modal & Delete handlers
+    const modal = document.getElementById("deleteConfirmationModal");
+    const codeSpan = document.getElementById("deleteProposalCode");
+    const cancelBtn = document.getElementById("cancelDeleteBtn");
+    const cancelCross = document.getElementById("cancelDeleteCross");
+    const confirmBtn = document.getElementById("confirmDeleteBtn");
+    const confirmText = document.getElementById("confirmDeleteText");
+
+    let targetAssessmentId = null;
+    let targetCode = null;
+    let targetStatus = null;
+    let targetRow = null;
+
+    function showToast(message, type) {
+      type = type || "success";
+      const container = document.getElementById("trackerToastContainer");
+      if (!container) return;
+      const toast = document.createElement("div");
+      toast.className = `tracker-toast tracker-toast-${type}`;
+      toast.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          ${type === 'success' 
+            ? '<polyline points="20 6 9 17 4 12"></polyline>' 
+            : '<circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line>'}
+        </svg>
+        <span>${message}</span>
+      `;
+      container.appendChild(toast);
+      setTimeout(function () {
+        toast.style.opacity = "0";
+        toast.style.transition = "opacity 0.3s ease";
+        setTimeout(function () { toast.remove(); }, 300);
+      }, 4000);
+    }
+
+    window.updateDealOutcome = function (selectEl, assessmentId) {
+      if (!selectEl || !assessmentId) return;
+      const newOutcome = selectEl.value;
+
+      selectEl.className = 'deal-outcome-select deal-outcome-' + newOutcome.toLowerCase();
+
+      const row = selectEl.closest('tr');
+      if (row) {
+        let searchText = row.getAttribute('data-search-text') || '';
+        searchText = searchText.replace(/\b(open|won|lost)\b/gi, '').trim() + ' ' + newOutcome.toLowerCase();
+        row.setAttribute('data-search-text', searchText);
+      }
+
+      fetch('/tracker/deal-outcome/' + assessmentId, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-No-Loader': 'true'
+        },
+        body: JSON.stringify({
+          assessment_id: assessmentId,
+          deal_outcome: newOutcome
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          showToast(`Deal outcome updated to ${data.deal_outcome}`, 'success');
+        } else {
+          showToast(data.message || 'Failed to update deal outcome', 'error');
+        }
+      })
+      .catch(err => {
+        console.error('Error updating deal outcome:', err);
+        showToast('Failed to update deal outcome. Please try again.', 'error');
+      });
+    };
+
+    function closeModal() {
+      if (modal) modal.style.display = "none";
+      targetAssessmentId = null;
+      targetCode = null;
+      targetStatus = null;
+      targetRow = null;
+      if (confirmBtn) confirmBtn.disabled = false;
+      if (confirmText) confirmText.textContent = "Delete Proposal";
+    }
+
+    // Event delegation for row delete buttons
+    document.addEventListener("click", function (evt) {
+      const btn = evt.target.closest(".delete-proposal-btn");
+      if (!btn) return;
+      evt.preventDefault();
+
+      targetAssessmentId = btn.getAttribute("data-assessment-id");
+      targetCode = btn.getAttribute("data-proposal-code") || "Proposal";
+      targetStatus = btn.getAttribute("data-proposal-status");
+      targetRow = btn.closest("tr");
+
+      if (codeSpan) codeSpan.textContent = targetCode;
+      if (modal) modal.style.display = "flex";
+    });
+
+    if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+    if (cancelCross) cancelCross.addEventListener("click", closeModal);
+    if (modal) {
+      modal.addEventListener("click", function (evt) {
+        if (evt.target === modal) closeModal();
+      });
+    }
+
+    if (confirmBtn) {
+      confirmBtn.addEventListener("click", function () {
+        if (!targetAssessmentId) return;
+
+        confirmBtn.disabled = true;
+        if (confirmText) confirmText.textContent = "Deleting...";
+
+        fetch(`/tracker/delete/${targetAssessmentId}`, {
+          method: "POST",
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/json"
+          }
+        })
+        .then(function (res) {
+          if (!res.ok) throw new Error("Server error");
+          return res.json();
+        })
+        .then(function (data) {
+          if (data && data.success) {
+            const deletedCode = targetCode;
+            const statusName = targetStatus;
+
+            if (targetRow) {
+              targetRow.remove();
+            }
+
+            closeModal();
+            showToast(`Proposal ${deletedCode} deleted successfully.`, "success");
+            updateTrackerStats(statusName);
+          } else {
+            closeModal();
+            showToast((data && data.message) || "Unable to delete proposal. Please try again.", "error");
+          }
+        })
+        .catch(function (err) {
+          console.error("Delete request error:", err);
+          closeModal();
+          showToast("Unable to delete proposal. Please try again.", "error");
+        });
+      });
+    }
+
+    function updateTrackerStats(deletedStatus) {
+      const totalEl = document.querySelector(".stat-total .stat-value");
+      if (totalEl) {
+        let currentTotal = parseInt(totalEl.textContent) || 0;
+        let newTotal = Math.max(0, currentTotal - 1);
+        totalEl.textContent = newTotal;
+
+        if (newTotal === 0) {
+          const tableSec = document.querySelector(".recent-proposals-section");
+          const analyticsSec = document.querySelector(".analytics-grid");
+          if (analyticsSec) analyticsSec.remove();
+          if (tableSec) {
+            tableSec.innerHTML = `
+              <div class="section-card">
+                <div class="empty-state-card">
+                  <div class="empty-state-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                  </div>
+                  <h3 class="empty-state-title">No proposals yet</h3>
+                  <p class="empty-state-text">Create your first AI proposal to get started with client proposal tracking.</p>
+                  <a href="{{ url_for('ai_grc_new') }}" class="primary-btn" style="margin-top: 16px; display: inline-flex; align-items: center; gap: 6px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span>Create New Proposal</span>
+                  </a>
+                </div>
+              </div>
+            `;
+          }
+          return;
+        }
+      }
+
+      let statusIndex = -1;
+      if (deletedStatus === "Submitted") {
+        statusIndex = 0;
+        const el = document.querySelector(".stat-submitted .stat-value");
+        if (el) el.textContent = Math.max(0, (parseInt(el.textContent) || 0) - 1);
+      } else if (deletedStatus === "In Evaluation") {
+        statusIndex = 1;
+        const el = document.querySelector(".stat-evaluation .stat-value");
+        if (el) el.textContent = Math.max(0, (parseInt(el.textContent) || 0) - 1);
+      } else if (deletedStatus === "Approved") {
+        statusIndex = 2;
+        const el = document.querySelector(".stat-approved .stat-value");
+        if (el) el.textContent = Math.max(0, (parseInt(el.textContent) || 0) - 1);
+      } else if (deletedStatus === "Rejected") {
+        statusIndex = 3;
+        const el = document.querySelector(".stat-rejected .stat-value");
+        if (el) el.textContent = Math.max(0, (parseInt(el.textContent) || 0) - 1);
+      }
+
+      if (activeStatusChart && statusIndex !== -1) {
+        let currentVal = activeStatusChart.data.datasets[0].data[statusIndex] || 0;
+        activeStatusChart.data.datasets[0].data[statusIndex] = Math.max(0, currentVal - 1);
+        activeStatusChart.update();
+      }
+    }
+  });
+</script>
+{% endblock %}
