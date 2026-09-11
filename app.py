@@ -1,4 +1,5 @@
-from dotenv import load_dotenv
+from pathlib import Path
+from dotenv import load_dotenv, find_dotenv
 from html import escape
 from io import BytesIO
 import base64
@@ -9,7 +10,11 @@ import os
 import textwrap
 import zipfile
 
-load_dotenv()
+# Automatically load .env file from application directory and project root
+_app_env_path = Path(__file__).resolve().parent / ".env"
+if _app_env_path.exists():
+    load_dotenv(dotenv_path=_app_env_path)
+load_dotenv(find_dotenv(), override=False)
 
 GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
@@ -18,14 +23,12 @@ GEMINI_REQUEST_TIMEOUT_MS = GEMINI_REQUEST_TIMEOUT_SEC * 1000
 
 import json
 import re
-import os
 import sqlite3
 import time
 import ipaddress
 import httpx
 from datetime import datetime, timedelta
 from functools import wraps
-from pathlib import Path
 
 from flask import Flask, flash, has_request_context, jsonify, redirect, render_template, request, send_file, session, url_for
 from google import genai
@@ -47,7 +50,13 @@ from proposal_template_registry import (
 )
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
+flask_secret_key = os.environ.get("FLASK_SECRET_KEY")
+if not flask_secret_key:
+    raise RuntimeError(
+        "FLASK_SECRET_KEY is not set. Please set FLASK_SECRET_KEY in your .env file or environment variables before running the application."
+    )
+app.secret_key = flask_secret_key
+app.config["SECRET_KEY"] = flask_secret_key
 DB_NAME = "agentscan.db"
 UPLOAD_DIR = Path(app.root_path) / "uploads" / "evidence"
 
@@ -89,7 +98,7 @@ def seed_default_admin():
     """Create a default admin account so the app works without local env setup."""
     username = os.environ.get("AGENTSCAN_ADMIN_USERNAME", "admin")
     email = os.environ.get("AGENTSCAN_ADMIN_EMAIL", "admin@agentscan.local")
-    password = os.environ.get("AGENTSCAN_ADMIN_PASSWORD")
+    password = os.environ.get("AGENTSCAN_ADMIN_PASSWORD") or "admin"
 
     conn = get_db_connection()
     existing = conn.execute(
@@ -184,6 +193,294 @@ def init_db():
             is_deleted INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS assessment_scopes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assessment_id INTEGER NOT NULL UNIQUE,
+            scope_description TEXT,
+            in_scope_assets TEXT,
+            out_of_scope_assets TEXT,
+            internal_network TEXT DEFAULT 'No',
+            web_applications TEXT DEFAULT 'No',
+            cloud_infrastructure TEXT DEFAULT 'No',
+            physical_security TEXT DEFAULT 'No',
+            hr_systems TEXT DEFAULT 'No',
+            security_policies TEXT DEFAULT 'No',
+            assessment_activities TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(assessment_id) REFERENCES assessments(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS organization_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assessment_id INTEGER NOT NULL UNIQUE,
+            legal_name TEXT,
+            industry TEXT,
+            employee_count TEXT,
+            location TEXT,
+            business_description TEXT,
+            critical_business_functions TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(assessment_id) REFERENCES assessments(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS policies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assessment_id INTEGER NOT NULL,
+            policy_name TEXT,
+            description TEXT,
+            owner TEXT,
+            status TEXT,
+            version TEXT,
+            review_date TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(assessment_id) REFERENCES assessments(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS compliance_frameworks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assessment_id INTEGER NOT NULL UNIQUE,
+            framework_name TEXT,
+            description TEXT,
+            status TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(assessment_id) REFERENCES assessments(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS assets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assessment_id INTEGER NOT NULL,
+            asset_name TEXT,
+            asset_type TEXT,
+            ip_address TEXT,
+            operating_system TEXT,
+            owner TEXT,
+            criticality TEXT,
+            status TEXT,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(assessment_id) REFERENCES assessments(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS risks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assessment_id INTEGER NOT NULL,
+            title TEXT,
+            description TEXT,
+            category TEXT,
+            likelihood INTEGER DEFAULT 1,
+            impact INTEGER DEFAULT 1,
+            risk_score INTEGER DEFAULT 0,
+            risk_level TEXT DEFAULT 'Low',
+            owner TEXT,
+            treatment TEXT,
+            status TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(assessment_id) REFERENCES assessments(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS controls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assessment_id INTEGER NOT NULL,
+            control_name TEXT,
+            description TEXT,
+            framework TEXT,
+            control_category TEXT,
+            owner TEXT,
+            implementation_status TEXT,
+            related_risk_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(assessment_id) REFERENCES assessments(id),
+            FOREIGN KEY(related_risk_id) REFERENCES risks(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS control_tests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            control_id INTEGER NOT NULL,
+            test_description TEXT,
+            test_method TEXT,
+            result TEXT,
+            tester TEXT,
+            test_date TEXT,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(control_id) REFERENCES controls(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS evidence (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assessment_id INTEGER NOT NULL,
+            control_id INTEGER,
+            evidence_name TEXT,
+            evidence_type TEXT,
+            file_path TEXT,
+            description TEXT,
+            uploaded_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(assessment_id) REFERENCES assessments(id),
+            FOREIGN KEY(control_id) REFERENCES controls(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS vendors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assessment_id INTEGER NOT NULL,
+            vendor_name TEXT,
+            service TEXT,
+            criticality TEXT,
+            risk_level TEXT,
+            assessment_status TEXT,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(assessment_id) REFERENCES assessments(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS findings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assessment_id INTEGER NOT NULL,
+            title TEXT,
+            description TEXT,
+            source TEXT,
+            severity TEXT,
+            ip_address TEXT,
+            port TEXT,
+            service TEXT,
+            status TEXT,
+            recommendation TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(assessment_id) REFERENCES assessments(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS remediation_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assessment_id INTEGER NOT NULL,
+            finding_id INTEGER,
+            risk_id INTEGER,
+            action TEXT,
+            owner TEXT,
+            priority TEXT,
+            due_date TEXT,
+            status TEXT,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(assessment_id) REFERENCES assessments(id),
+            FOREIGN KEY(finding_id) REFERENCES findings(id),
+            FOREIGN KEY(risk_id) REFERENCES risks(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            assessment_id INTEGER,
+            action TEXT NOT NULL,
+            entity_type TEXT NOT NULL,
+            entity_id INTEGER,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            description TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id),
+            FOREIGN KEY(assessment_id) REFERENCES assessments(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS proposal_email_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            assessment_id INTEGER,
+            recipient_email TEXT NOT NULL,
+            status TEXT NOT NULL,
+            message_id TEXT,
+            error_message TEXT,
+            sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id),
+            FOREIGN KEY(assessment_id) REFERENCES assessments(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS batches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS scan_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            batch_id INTEGER NOT NULL,
+            target TEXT,
+            result_data TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(batch_id) REFERENCES batches(id)
         )
         """
     )
@@ -3945,10 +4242,11 @@ Rules:
         temperature=0.3,
         max_output_tokens=4096,
         thinking_config=types.ThinkingConfig(thinking_budget=1024),
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         http_options=req_http_options,
     )
 
-    for attempt in (1, 2):
+    for attempt in (1, 2, 3):
         try:
             app.logger.info("[PROPOSAL] Gemini request started using model=%s (attempt %d)", GEMINI_MODEL, attempt)
             response = client_obj.models.generate_content(
@@ -3974,9 +4272,10 @@ Rules:
                 raise APITimeoutError(f"AI business proposal generation timed out after {GEMINI_REQUEST_TIMEOUT_SEC} seconds.") from exc
 
             is_503 = "503" in str(exc) or "UNAVAILABLE" in str(exc) or "high demand" in exc_str
-            if attempt == 1 and is_503:
-                app.logger.warning("[PROPOSAL] Gemini model high demand 503 spike encountered, retrying once in 1.5s...")
-                time.sleep(1.5)
+            if attempt < 3 and is_503:
+                backoff_time = attempt * 2.0
+                app.logger.warning("[PROPOSAL] Gemini model high demand 503 spike encountered, retrying in %.1fs (attempt %d/3)...", backoff_time, attempt)
+                time.sleep(backoff_time)
                 continue
 
             app.logger.error("[PROPOSAL] Gemini request failed after %.2fs | Error type: %s | Fallback used: no | Client: %s: %s", gemini_duration, type(exc).__name__, client, exc)
@@ -4721,6 +5020,7 @@ ALLOWED TABLES AND FIELDS:
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_json_schema=schema,
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
                     http_options=types.HttpOptions(timeout=GEMINI_REQUEST_TIMEOUT_MS),
                 ),
             )
@@ -6533,6 +6833,7 @@ Strict Requirements:
             temperature=0.3,
             max_output_tokens=2048,
             thinking_config=types.ThinkingConfig(thinking_budget=512),
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             http_options=req_http_options,
         )
 

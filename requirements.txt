@@ -1,5 +1,5 @@
 Flask
-google-genai
+google-genai==2.23.0
 python-dotenv
 python-docx
 reportlab
